@@ -18,21 +18,39 @@ connectDB();
 const app = express();
 const server = http.createServer(app);
 
+// Allow localhost for dev + any CLIENT_URL(s) set in environment
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
   "http://localhost:5176",
 ];
+// CLIENT_URL can be a single URL or comma-separated list e.g.
+// "https://fifa-2026-frontend-oc9s.onrender.com"
 if (process.env.CLIENT_URL) {
-  allowedOrigins.push(process.env.CLIENT_URL);
+  process.env.CLIENT_URL.split(",").forEach((u) =>
+    allowedOrigins.push(u.trim())
+  );
 }
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (curl, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+};
 
 // ─── Socket.io setup ─────────────────────────────────────
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
@@ -41,12 +59,7 @@ app.set("io", io);
 setupSocket(io);
 
 // ─── Middleware ──────────────────────────────────────────
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  })
-);
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // ─── API Routes ──────────────────────────────────────────
