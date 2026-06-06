@@ -63,10 +63,12 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // ─── API Routes ──────────────────────────────────────────
-app.use("/api/auth", authRoutes);
-app.use("/api/admin", adminRoutes);
+const syncRoutes = require("./routes/sync");
+app.use("/api/auth",    authRoutes);
+app.use("/api/admin",   adminRoutes);
 app.use("/api/matches", matchRoutes);
-app.use("/api/teams", teamPlayerRoutes);
+app.use("/api/teams",   teamPlayerRoutes);
+app.use("/api/sync",    syncRoutes);   // Render cron job hits this
 
 // ─── Health check ────────────────────────────────────────
 app.get("/api/health", (req, res) => {

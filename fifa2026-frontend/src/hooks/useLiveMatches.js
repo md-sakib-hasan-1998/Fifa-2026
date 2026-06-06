@@ -53,14 +53,21 @@ export const useLiveMatches = () => {
       )
     }
 
+    // When Render cron job finishes a sync, re-fetch the full match list
+    const handleDataRefresh = () => {
+      fetchMatches()
+    }
+
     socket.on('scoreUpdateGlobal', handleScoreUpdate)
     socket.on('streamLinkUpdated', handleStreamLink)
+    socket.on('dataRefreshed',     handleDataRefresh)  // ← Render cron broadcast
 
     return () => {
       socket.off('scoreUpdateGlobal', handleScoreUpdate)
       socket.off('streamLinkUpdated', handleStreamLink)
+      socket.off('dataRefreshed',     handleDataRefresh)
     }
-  }, [socket])
+  }, [socket, fetchMatches])
 
   return { matches, loading, error, refetch: fetchMatches }
 }
