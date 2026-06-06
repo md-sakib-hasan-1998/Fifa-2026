@@ -36,8 +36,15 @@ const MatchDetail = () => {
         setMatch(prev => prev ? { ...prev, ...update } : prev)
       }
     }
+    const refreshHandler = () => {
+      fetchMatch()
+    }
     socket.on('scoreUpdate', handler)
-    return () => socket.off('scoreUpdate', handler)
+    socket.on('dataRefreshed', refreshHandler)
+    return () => {
+      socket.off('scoreUpdate', handler)
+      socket.off('dataRefreshed', refreshHandler)
+    }
   }, [socket, id])
 
   if (loading) return <Layout><div className="flex justify-center py-40"><Spinner size="lg" /></div></Layout>
