@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    @apply bg-navy text-ice font-body;
+    background-image:
+      /* Subtle pitch-line grid overlay */
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 79px,
+        rgba(0, 230, 118, 0.03) 79px,
+        rgba(0, 230, 118, 0.03) 80px
+      ),
+      repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 79px,
+        rgba(0, 230, 118, 0.03) 79px,
+        rgba(0, 230, 118, 0.03) 80px
+      );
+    min-height: 100vh;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar       { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #050d1a; }
+  ::-webkit-scrollbar-thumb { background: #112a54; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #00e676; }
+}
+
+@layer components {
+  /* ── Buttons ─────────────────────────────────── */
+  .btn-primary {
+    @apply bg-pitch text-navy font-body font-bold px-6 py-2.5 rounded
+           hover:bg-pitch-400 active:scale-95
+           transition-all duration-150 text-sm tracking-wide;
+  }
+  .btn-secondary {
+    @apply border border-pitch/40 text-pitch font-body font-medium px-6 py-2.5 rounded
+           hover:bg-pitch/10 active:scale-95
+           transition-all duration-150 text-sm tracking-wide;
+  }
+  .btn-gold {
+    @apply bg-gold text-navy font-body font-bold px-6 py-2.5 rounded
+           hover:bg-gold-400 active:scale-95
+           transition-all duration-150 text-sm tracking-wide;
+  }
+  .btn-danger {
+    @apply bg-scarlet/20 text-scarlet border border-scarlet/30 font-body font-medium
+           px-4 py-2 rounded hover:bg-scarlet/30 active:scale-95
+           transition-all duration-150 text-sm;
+  }
+  .btn-ghost {
+    @apply text-ice/60 font-body font-medium px-4 py-2 rounded
+           hover:text-ice hover:bg-white/5 active:scale-95
+           transition-all duration-150 text-sm;
+  }
+
+  /* ── Cards ───────────────────────────────────── */
+  .card {
+    @apply bg-navy-800 border border-white/5 rounded-xl
+           hover:border-pitch/20 transition-colors duration-200;
+  }
+  .card-glow {
+    @apply card shadow-[0_0_30px_rgba(0,230,118,0.08)];
+  }
+
+  /* ── Inputs ──────────────────────────────────── */
+  .input {
+    @apply w-full bg-navy-700 border border-white/10 rounded-lg px-4 py-3
+           text-ice placeholder-ice/30 font-body text-sm
+           focus:outline-none focus:border-pitch/60 focus:ring-1 focus:ring-pitch/30
+           transition-colors duration-150;
+  }
+  .label {
+    @apply block text-ice/60 text-xs font-medium tracking-wider uppercase mb-1.5;
+  }
+
+  /* ── Badges ──────────────────────────────────── */
+  .badge-live {
+    @apply inline-flex items-center gap-1.5 bg-scarlet/20 text-scarlet
+           text-xs font-bold px-2.5 py-1 rounded-full tracking-widest uppercase;
+  }
+  .badge-finished {
+    @apply inline-flex items-center bg-white/10 text-ice/50
+           text-xs font-medium px-2.5 py-1 rounded-full;
+  }
+  .badge-scheduled {
+    @apply inline-flex items-center bg-pitch/10 text-pitch
+           text-xs font-medium px-2.5 py-1 rounded-full;
+  }
+  .badge-role {
+    @apply text-xs font-bold px-2 py-0.5 rounded tracking-wide uppercase;
+  }
+
+  /* ── Section headings ────────────────────────── */
+  .section-title {
+    @apply font-display text-4xl text-ice tracking-wide;
+  }
+  .section-subtitle {
+    @apply text-ice/40 text-sm tracking-widest uppercase font-medium;
+  }
+
+  /* ── Star rating ─────────────────────────────── */
+  .star-filled { @apply text-gold; }
+  .star-empty  { @apply text-white/20; }
+
+  /* ── Divider ─────────────────────────────────── */
+  .divider {
+    @apply border-t border-white/5;
+  }
+
+  /* ── Table ───────────────────────────────────── */
+  .table-row {
+    @apply border-b border-white/5 hover:bg-white/3 transition-colors duration-100;
+  }
+
+  /* ── Skeleton loader ─────────────────────────── */
+  .skeleton {
+    @apply bg-navy-700 rounded animate-pulse;
+  }
+}
+
+/* Stagger animation helpers */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.10s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.20s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.30s; }

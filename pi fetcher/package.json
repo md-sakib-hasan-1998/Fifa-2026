@@ -1,0 +1,14 @@
+{
+  "name": "fifa2026-pi-fetcher",
+  "version": "1.0.0",
+  "description": "Raspberry Pi live score fetcher for FIFA World Cup 2026",
+  "main": "fetcher.js",
+  "scripts": {
+    "start": "node fetcher.js",
+    "sync-teams": "node scripts/syncTeamsPlayers.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5"
+  }
+}
