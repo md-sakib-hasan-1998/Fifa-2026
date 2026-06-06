@@ -75,7 +75,7 @@ const AppRoutes = () => (
 )
 
 const App = () => (
-  <BrowserRouter basename="/fifa2026">
+  <BrowserRouter>
     <AuthProvider>
       <SocketProvider>
         <AppRoutes />
