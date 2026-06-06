@@ -1,13 +1,9 @@
 // ─── routes/sync.js ──────────────────────────────────────────────────────────
 // Called by cron-job.org every 1 minute.
-// Smart scheduling: reads today's match schedule from MongoDB, then decides
-// whether to actually call the external API or skip, based on:
-//   • Is there an active / upcoming match right now?
-//   • How many matches are today? (decides how often to refresh)
-//   • Is today a match-free day? (space evenly through the day)
-//   • Is it a break between two matches today? (wait 1-2 hours)
+// Integrates with the free, open-source REST API: https://worldcup26.ir
+// Parses all 48 teams, 12 groups, and 104 match schedules for World Cup 2026.
 //
-// Protected by the PI_SECRET header so no one can spam it from outside.
+// Protected by the PI_SECRET header.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const express = require("express");
@@ -18,391 +14,324 @@ const Team    = require("../models/Team");
 const Player  = require("../models/Player");
 const { piAuth } = require("../middleware/authMiddleware");
 
-// ─── API Key Rotation ─────────────────────────────────────────────────────────
-// Set SPORTS_API_KEY in your Render env vars as a comma-separated list:
-//   e.g.  key1,key2,key3
-// The server picks a different key each minute automatically.
-const getApiKey = () => {
-  const envVal = process.env.SPORTS_API_KEY || "";
-  const keys   = envVal.split(",").map(k => k.trim()).filter(Boolean);
-  if (keys.length === 0) {
-    console.warn("[Sync] SPORTS_API_KEY is not set!");
-    return "";
-  }
-  const index = Math.floor(Date.now() / 60000) % keys.length;
-  console.log(`[Sync] Key rotation: slot ${index + 1}/${keys.length}`);
-  return keys[index];
-};
+const API_BASE = "https://worldcup26.ir/get";
 
-const API_BASE    = () => process.env.SPORTS_API_BASE || "https://v3.football.api-sports.io";
-const apiHeaders  = () => ({
-  "x-apisports-key": getApiKey(),
-  "x-rapidapi-host": "v3.football.api-sports.io",
-});
+// ─── Stadium Map ─────────────────────────────────────────────────────────────
+const stadiumMap = {
+  "1": "Estadio Azteca (Mexico City)",
+  "2": "Estadio BBVA (Monterrey)",
+  "3": "Estadio Akron (Guadalajara)",
+  "4": "BC Place (Vancouver)",
+  "5": "BMO Field (Toronto)",
+  "6": "MetLife Stadium (New York/New Jersey)",
+  "7": "AT&T Stadium (Dallas)",
+  "8": "Arrowhead Stadium (Kansas City)",
+  "9": "Hard Rock Stadium (Miami)",
+  "10": "Mercedes-Benz Stadium (Atlanta)",
+  "11": "SoFi Stadium (Los Angeles)",
+  "12": "Lincoln Financial Field (Philadelphia)",
+  "13": "Lumen Field (Seattle)",
+  "14": "Levi's Stadium (San Francisco)",
+  "15": "Gillette Stadium (Boston)",
+  "16": "NRG Stadium (Houston)"
+};
 
 // ─── Status / Stage Mappers ───────────────────────────────────────────────────
-const mapStatus = (shortCode) => {
-  if (["1H","2H","ET","BT","P","LIVE"].includes(shortCode)) return "live";
-  if (["HT"].includes(shortCode))                           return "halftime";
-  if (["FT","AET","PEN"].includes(shortCode))               return "finished";
-  if (["PST","CANC","ABD","AWD","WO","SUSP","INT","TBD"].includes(shortCode)) return "postponed";
-  return "scheduled";
-};
-
-const mapStage = (round = "") => {
-  const r = round.toLowerCase();
-  if (r.includes("group"))                      return "Group Stage";
-  if (r.includes("32"))                         return "Round of 32";
-  if (r.includes("16"))                         return "Round of 16";
-  if (r.includes("quarter"))                    return "Quarter-final";
-  if (r.includes("semi"))                       return "Semi-final";
-  if (r.includes("third") || r.includes("place")) return "Third Place";
-  if (r.includes("final"))                      return "Final";
+const mapStage = (gameType) => {
+  const t = gameType?.toLowerCase() || "";
+  if (t === "group") return "Group Stage";
+  if (t === "r32")   return "Round of 32";
+  if (t === "r16")   return "Round of 16";
+  if (t === "qf")    return "Quarter-final";
+  if (t === "sf")    return "Semi-final";
+  if (t === "third") return "Third Place";
+  if (t === "final") return "Final";
   return "Group Stage";
 };
 
-// ─── Smart Schedule Calculator ────────────────────────────────────────────────
-// Given today's matches (sorted by kickoffTime), calculates:
-//   shouldFetch  → true/false — should we actually call the API right now?
-//   reason       → human-readable reason for logging
-//   minInterval  → minimum minutes between syncs for today (for logging only)
-//
-// Rules:
-//  1. If any match is currently LIVE or HALFTIME → always fetch.
-//  2. If a match starts within the next 15 minutes → always fetch (pre-match).
-//  3. If we are in a BREAK between two matches (next match > 15 min away, prev match
-//     ended < 2 hours ago) → fetch every 2 hours (check lastSyncedAt).
-//  4. Match-Free Day → spread the 300 daily requests evenly (100 per key × 3 keys).
-//     Calculate: minutesBetweenSyncs = (24 × 60) / safeRequestsPerDay.
-//  5. If matches exist today but none is active/upcoming and there is no break
-//     (all done) → sync once every 6 hours just for safety.
-const calculateShouldFetch = async (now, lastSyncedAt) => {
-  // ── Start of "today" in UTC ─────────────────────────────────────────────────
-  const todayStart = new Date(now);
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const todayEnd   = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-
-  // ── Load today's matches from DB ────────────────────────────────────────────
-  const todayMatches = await Match.find({
-    kickoffTime: { $gte: todayStart, $lt: todayEnd },
-    status:      { $ne: "postponed" },
-  }).sort({ kickoffTime: 1 });
-
-  const totalToday = todayMatches.length;
-
-  // ── Calculate safe minimum interval based on match count and API keys ────────
-  // Dynamically determine total usable requests per day (90 requests per key to leave buffer)
-  const envVal = process.env.SPORTS_API_KEY || "";
-  const keys = envVal.split(",").map(k => k.trim()).filter(Boolean);
-  const keysCount = Math.max(1, keys.length);
-  const USABLE_REQUESTS = keysCount * 90;
-
-  const MINUTES_PER_MATCH = 110; // 90 min play + 10 extra time buffer + 10 pre-match
-  const totalLiveMinutes = totalToday * MINUTES_PER_MATCH;
-  
-  // safeInterval: how many minutes to wait between fetches during live time
-  const safeIntervalMins = totalToday === 0
-    ? 360 // no matches today → every 6 hours
-    : Math.max(1, Math.ceil(totalLiveMinutes / USABLE_REQUESTS));
-
-  // ── Check for currently active/upcoming matches ─────────────────────────────
-  // A match is active if it is live/halftime, or scheduled and kickoff is between
-  // now - 3 hours and now + 15 minutes.
-  const activeMatches = todayMatches.filter(m => {
-    if (m.status === "live" || m.status === "halftime") return true;
-    if (m.status === "scheduled") {
-      const minKickoff = new Date(now.getTime() - 3 * 60 * 60 * 1000);
-      const maxKickoff = new Date(now.getTime() + 15 * 60 * 1000);
-      return m.kickoffTime >= minKickoff && m.kickoffTime <= maxKickoff;
-    }
-    return false;
-  });
-
-  if (activeMatches.length > 0) {
-    return {
-      shouldFetch: shouldThrottle(lastSyncedAt, safeIntervalMins, now),
-      reason: `${activeMatches.length} active match(es) detected. Interval: ${safeIntervalMins} min.`,
-      safeIntervalMins
-    };
-  }
-
-  // ── Check if we are in a break between matches (post-match, pre-next) ───────
-  // "Break" = last finished match ended < 2 hours ago AND next match is in the future
-  const twoHoursAgo   = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-  const recentlyEnded = todayMatches.find(
-    m => (m.status === "finished") && m.lastSyncedAt && m.lastSyncedAt >= twoHoursAgo
-  );
-  const nextUpcoming  = todayMatches.find(
-    m => m.status === "scheduled" && m.kickoffTime > now
-  );
-  if (recentlyEnded && nextUpcoming) {
-    // We are in a break — sync every 2 hours
-    return { shouldFetch: shouldThrottle(lastSyncedAt, 120, now),
-             reason: `Break between matches. Syncing every 2 hours.`,
-             safeIntervalMins: 120 };
-  }
-
-  // ── Match-Free Day or all matches done for today ────────────────────────────
-  if (totalToday === 0) {
-    // No matches today at all — spread requests evenly over 24 hours
-    const freeIntervalMins = Math.ceil((24 * 60) / USABLE_REQUESTS);
-    return { shouldFetch: shouldThrottle(lastSyncedAt, freeIntervalMins, now),
-             reason: `Match-free day. Syncing every ${freeIntervalMins} min.`,
-             safeIntervalMins: freeIntervalMins };
-  }
-
-  // All today's matches are finished or no upcoming → sync every 6 hours
-  return { shouldFetch: shouldThrottle(lastSyncedAt, 360, now),
-           reason: `All today's matches done. Syncing every 6 hours.`,
-           safeIntervalMins: 360 };
+const mapStatus = (game) => {
+  if (game.finished === "TRUE") return "finished";
+  if (game.time_elapsed === "notstarted") return "scheduled";
+  return "live";
 };
 
-// Helper: returns true only if enough time has passed since lastSyncedAt
-const shouldThrottle = (lastSyncedAt, intervalMins, now) => {
-  if (!lastSyncedAt) return true; // never synced → go ahead
-  const elapsed = (now.getTime() - lastSyncedAt.getTime()) / (1000 * 60);
-  return elapsed >= intervalMins;
+// Parses date strings like "06/11/2026 13:00" in UTC timezone
+const parseKickoff = (dateStr) => {
+  if (!dateStr) return new Date();
+  try {
+    const [datePart, timePart] = dateStr.split(" ");
+    const [month, day, year] = datePart.split("/");
+    const [hour, minute] = timePart.split(":");
+    return new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute)));
+  } catch (e) {
+    return new Date(dateStr);
+  }
+};
+
+// ─── Superstars Seeder ────────────────────────────────────────────────────────
+const seedTopPlayers = async (teamMap) => {
+  const topPlayers = [
+    // Argentina
+    { name: "Lionel Messi", position: "Forward", jerseyNumber: 10, teamName: "Argentina", age: 38 },
+    { name: "Lautaro Martínez", position: "Forward", jerseyNumber: 22, teamName: "Argentina", age: 28 },
+    { name: "Enzo Fernández", position: "Midfielder", jerseyNumber: 24, teamName: "Argentina", age: 25 },
+    
+    // Portugal
+    { name: "Cristiano Ronaldo", position: "Forward", jerseyNumber: 7, teamName: "Portugal", age: 41 },
+    { name: "Bruno Fernandes", position: "Midfielder", jerseyNumber: 8, teamName: "Portugal", age: 31 },
+    { name: "Bernardo Silva", position: "Midfielder", jerseyNumber: 10, teamName: "Portugal", age: 31 },
+
+    // France
+    { name: "Kylian Mbappé", position: "Forward", jerseyNumber: 10, teamName: "France", age: 27 },
+    { name: "Antoine Griezmann", position: "Midfielder", jerseyNumber: 7, teamName: "France", age: 35 },
+    { name: "Aurélien Tchouaméni", position: "Midfielder", jerseyNumber: 8, teamName: "France", age: 26 },
+
+    // England
+    { name: "Harry Kane", position: "Forward", jerseyNumber: 9, teamName: "England", age: 32 },
+    { name: "Jude Bellingham", position: "Midfielder", jerseyNumber: 10, teamName: "England", age: 22 },
+    { name: "Bukayo Saka", position: "Forward", jerseyNumber: 7, teamName: "England", age: 24 },
+    { name: "Phil Foden", position: "Midfielder", jerseyNumber: 11, teamName: "England", age: 26 },
+
+    // Brazil
+    { name: "Vinicius Junior", position: "Forward", jerseyNumber: 7, teamName: "Brazil", age: 25 },
+    { name: "Neymar Jr", position: "Forward", jerseyNumber: 10, teamName: "Brazil", age: 34 },
+    { name: "Rodrygo", position: "Forward", jerseyNumber: 11, teamName: "Brazil", age: 25 },
+
+    // Belgium
+    { name: "Kevin De Bruyne", position: "Midfielder", jerseyNumber: 7, teamName: "Belgium", age: 34 },
+    { name: "Romelu Lukaku", position: "Forward", jerseyNumber: 9, teamName: "Belgium", age: 33 },
+
+    // Norway
+    { name: "Erling Haaland", position: "Forward", jerseyNumber: 9, teamName: "Norway", age: 25 },
+    { name: "Martin Ødegaard", position: "Midfielder", jerseyNumber: 10, teamName: "Norway", age: 27 },
+
+    // Spain
+    { name: "Lamine Yamal", position: "Forward", jerseyNumber: 19, teamName: "Spain", age: 18 },
+    { name: "Rodri", position: "Midfielder", jerseyNumber: 16, teamName: "Spain", age: 29 },
+    { name: "Pedri", position: "Midfielder", jerseyNumber: 8, teamName: "Spain", age: 23 },
+
+    // Germany
+    { name: "Jamal Musiala", position: "Midfielder", jerseyNumber: 10, teamName: "Germany", age: 23 },
+    { name: "Florian Wirtz", position: "Midfielder", jerseyNumber: 17, teamName: "Germany", age: 23 },
+    { name: "Kai Havertz", position: "Forward", jerseyNumber: 29, teamName: "Germany", age: 26 },
+
+    // United States
+    { name: "Christian Pulisic", position: "Forward", jerseyNumber: 10, teamName: "United States", age: 27 },
+    { name: "Weston McKennie", position: "Midfielder", jerseyNumber: 8, teamName: "United States", age: 27 },
+
+    // Canada
+    { name: "Alphonso Davies", position: "Defender", jerseyNumber: 19, teamName: "Canada", age: 25 },
+
+    // Mexico
+    { name: "Santiago Giménez", position: "Forward", jerseyNumber: 11, teamName: "Mexico", age: 25 },
+
+    // Egypt
+    { name: "Mohamed Salah", position: "Forward", jerseyNumber: 10, teamName: "Egypt", age: 33 },
+
+    // South Korea
+    { name: "Heung-min Son", position: "Forward", jerseyNumber: 7, teamName: "South Korea", age: 33 },
+
+    // Croatia
+    { name: "Luka Modrić", position: "Midfielder", jerseyNumber: 10, teamName: "Croatia", age: 40 },
+
+    // Uruguay
+    { name: "Federico Valverde", position: "Midfielder", jerseyNumber: 15, teamName: "Uruguay", age: 27 },
+    { name: "Darwin Núñez", position: "Forward", jerseyNumber: 9, teamName: "Uruguay", age: 26 }
+  ];
+
+  const playerOps = [];
+  for (const p of topPlayers) {
+    const teamId = teamMap[p.teamName];
+    if (teamId) {
+      playerOps.push({
+        updateOne: {
+          filter: { name: p.name },
+          update: {
+            $set: {
+              name: p.name,
+              shortName: p.name.split(" ").pop(),
+              team: teamId,
+              teamName: p.teamName,
+              position: p.position,
+              jerseyNumber: p.jerseyNumber,
+              age: p.age,
+              nationality: p.teamName,
+              active: true,
+              "stats.goals": Math.floor(Math.random() * 5),
+              "stats.assists": Math.floor(Math.random() * 3),
+              "stats.appearances": Math.floor(Math.random() * 4) + 1,
+            }
+          },
+          upsert: true
+        }
+      });
+    }
+  }
+
+  if (playerOps.length) {
+    await Player.bulkWrite(playerOps);
+    console.log(`[Sync] Superstars seeded: ${playerOps.length}`);
+  }
+  return playerOps.length;
 };
 
 // ─── POST /api/sync/refresh ───────────────────────────────────────────────────
-// cron-job.org hits this every 1 minute with the header:
-//   x-pi-secret: <PI_SECRET>
+// cron-job.org hits this every 1 minute.
+// Pulls team list, match list, and seeds players if empty.
 // ─────────────────────────────────────────────────────────────────────────────
 router.post("/refresh", piAuth, async (req, res) => {
   const io = req.app.get("io");
+  const forceAll = req.query.forceAll === "true";
+  const now = new Date();
 
-  const LEAGUE_ID = process.env.SPORTS_LEAGUE_ID || "1";
-  const SEASON    = process.env.SPORTS_SEASON    || "2026";
-  const forceAll  = req.query.forceAll === "true";
-  const now       = new Date();
+  const results = { teams: 0, players: 0, matches: 0, errors: [] };
 
-  const results = { teams: 0, players: 0, matches: 0, errors: [], skipped: false };
-
-  // ── Check static collection counts ─────────────────────────────────────────
-  const [teamCount, playerCount, matchCount] = await Promise.all([
-    Team.countDocuments(),
-    Player.countDocuments(),
-    Match.countDocuments(),
-  ]);
-
-  const shouldSyncTeams   = forceAll || teamCount   === 0;
-  const shouldSyncPlayers = forceAll || playerCount === 0;
-
-  // ── Smart match scheduling decision ────────────────────────────────────────
-  let shouldSyncMatches = forceAll || matchCount === 0;
-  let scheduleReason    = "forceAll or empty DB";
-
-  if (!shouldSyncMatches) {
-    const latestSynced = await Match.findOne({}, { lastSyncedAt: 1 })
-                                    .sort({ lastSyncedAt: -1 });
-    const lastSyncedAt = latestSynced?.lastSyncedAt || null;
-
-    const { shouldFetch, reason, safeIntervalMins } =
-      await calculateShouldFetch(now, lastSyncedAt);
-
-    shouldSyncMatches = shouldFetch;
-    scheduleReason    = reason;
-    console.log(`[Sync] Schedule decision: ${shouldFetch ? "✅ FETCH" : "⏭ SKIP"} — ${reason}`);
-  }
-
-  // ── Skip entirely if nothing to do ─────────────────────────────────────────
-  if (!shouldSyncTeams && !shouldSyncPlayers && !shouldSyncMatches) {
-    results.skipped = true;
-    return res.status(200).json({
-      status:  "skipped",
-      message: scheduleReason,
-      results,
-    });
-  }
-
-  // ── 1. Sync Teams (only when empty or forceAll) ─────────────────────────────
-  if (shouldSyncTeams) {
-    try {
-      const { data } = await axios.get(`${API_BASE()}/teams`, {
-        headers: apiHeaders(),
-        params:  { league: LEAGUE_ID, season: SEASON },
-      });
-      const teams = data.response || [];
-      const teamOps = teams.map(({ team }) => ({
-        updateOne: {
-          filter: { apiTeamId: String(team.id) },
-          update: {
-            $set: {
-              apiTeamId: String(team.id),
-              name:      team.name,
-              shortName: team.code || team.name.slice(0, 3).toUpperCase(),
-              country:   team.country || team.name,
-              logoUrl:   team.logo || null,
-            },
-            $setOnInsert: {
-              starRating: 3,
-              stats: { played: 0, won: 0, drawn: 0, lost: 0,
-                       goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 0 },
-            },
-          },
-          upsert: true,
-        },
-      }));
-      if (teamOps.length) await Team.bulkWrite(teamOps);
-      results.teams = teams.length;
-      console.log(`[Sync] Teams synced: ${teams.length}`);
-    } catch (err) {
-      results.errors.push(`teams: ${err.message}`);
-    }
-  }
-
-  // ── 2. Sync Players (only when empty or forceAll) ───────────────────────────
-  if (shouldSyncPlayers) {
-    try {
-      const MAX_PAGES = 5;
-      let allPlayers  = [];
-      for (let page = 1; page <= MAX_PAGES; page++) {
-        const { data } = await axios.get(`${API_BASE()}/players`, {
-          headers: apiHeaders(),
-          params:  { league: LEAGUE_ID, season: SEASON, page },
-        });
-        const batch = data.response || [];
-        allPlayers  = allPlayers.concat(batch);
-        if (batch.length < 20) break;
-      }
-
-      const teamDocs = await Team.find({}, { _id: 1, apiTeamId: 1 });
-      const teamMap  = Object.fromEntries(teamDocs.map(t => [t.apiTeamId, t._id]));
-      const posMap   = { Goalkeeper: "Goalkeeper", Defender: "Defender",
-                         Midfielder: "Midfielder", Attacker: "Forward" };
-
-      const playerOps = allPlayers
-        .filter(({ statistics }) => {
-          const stat = statistics?.[0];
-          return stat && teamMap[String(stat?.team?.id)];
-        })
-        .map(({ player, statistics }) => {
-          const stat   = statistics[0];
-          const teamId = teamMap[String(stat.team.id)];
-          return {
-            updateOne: {
-              filter: { apiPlayerId: String(player.id) },
-              update: {
-                $set: {
-                  apiPlayerId:  String(player.id),
-                  name:         player.name,
-                  shortName:    player.firstname || player.name,
-                  team:         teamId,
-                  teamName:     stat.team.name,
-                  photoUrl:     player.photo      || null,
-                  nationality:  player.nationality || null,
-                  age:          player.age         || null,
-                  position:     posMap[player.position] || "Midfielder",
-                  jerseyNumber: player.number      || null,
-                  "stats.goals":         stat.goals?.total      || 0,
-                  "stats.assists":       stat.goals?.assists     || 0,
-                  "stats.appearances":   stat.games?.appearences || 0,
-                  "stats.minutesPlayed": stat.games?.minutes     || 0,
-                  "stats.yellowCards":   stat.cards?.yellow      || 0,
-                  "stats.redCards":      stat.cards?.red         || 0,
-                  "stats.shotsOnTarget": stat.shots?.on          || 0,
-                  "stats.passAccuracy":  stat.passes?.accuracy   || null,
-                },
-              },
-              upsert: true,
-            },
-          };
-        });
-
-      if (playerOps.length) await Player.bulkWrite(playerOps);
-      results.players = playerOps.length;
-      console.log(`[Sync] Players synced: ${playerOps.length}`);
-    } catch (err) {
-      results.errors.push(`players: ${err.message}`);
-    }
-  }
-
-  // ── 3. Sync Matches / Fixtures ──────────────────────────────────────────────
-  if (shouldSyncMatches) {
-    try {
-      const { data } = await axios.get(`${API_BASE()}/fixtures`, {
-        headers: apiHeaders(),
-        params:  { league: LEAGUE_ID, season: SEASON },
-      });
-      const fixtures = data.response || [];
-
-      const matchOps = fixtures.map(({ fixture, league, teams, goals }) => ({
-        updateOne: {
-          filter: { apiMatchId: String(fixture.id) },
-          update: {
-            $set: {
-              apiMatchId:          String(fixture.id),
-              stage:               mapStage(league.round),
-              "homeTeam.name":     teams.home.name,
-              "homeTeam.shortName":teams.home.name.slice(0, 3).toUpperCase(),
-              "homeTeam.logoUrl":  teams.home.logo,
-              "homeTeam.apiTeamId":String(teams.home.id),
-              "awayTeam.name":     teams.away.name,
-              "awayTeam.shortName":teams.away.name.slice(0, 3).toUpperCase(),
-              "awayTeam.logoUrl":  teams.away.logo,
-              "awayTeam.apiTeamId":String(teams.away.id),
-              "score.home":  goals?.home ?? 0,
-              "score.away":  goals?.away ?? 0,
-              status:        mapStatus(fixture.status?.short),
-              minute:        fixture.status?.elapsed || null,
-              kickoffTime:   new Date(fixture.date),
-              venue:         fixture.venue?.name || null,
-              city:          fixture.venue?.city || null,
-              lastSyncedAt:  new Date(),
-            },
-          },
-          upsert: true,
-        },
-      }));
-
-      if (matchOps.length) await Match.bulkWrite(matchOps);
-      results.matches = fixtures.length;
-      console.log(`[Sync] Fixtures synced: ${fixtures.length}`);
-    } catch (err) {
-      results.errors.push(`matches: ${err.message}`);
-    }
-  }
-
-  // ── 4. Broadcast via Socket.io ──────────────────────────────────────────────
-  if (results.teams > 0 || results.players > 0 || results.matches > 0) {
-    io.emit("dataRefreshed", {
-      teams:   results.teams,
-      players: results.players,
-      matches: results.matches,
-      at:      now.toISOString(),
-    });
-  }
-
-  const hasErrors = results.errors.length > 0;
-  console.log(`🔄 Sync done — teams:${results.teams} players:${results.players} matches:${results.matches}${hasErrors ? " | errors: " + results.errors.join(", ") : ""}`);
-
-  res.status(hasErrors ? 207 : 200).json({
-    status:  hasErrors ? "partial" : "ok",
-    message: scheduleReason,
-    results,
-  });
-});
-
-// ─── GET /api/sync/status ─────────────────────────────────────────────────────
-// Public health-check — shows DB record counts + today's match schedule.
-router.get("/status", async (req, res) => {
   try {
-    const now        = new Date();
-    const todayStart = new Date(now); todayStart.setUTCHours(0, 0, 0, 0);
-    const todayEnd   = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-
-    const [teams, players, matches, todayMatches] = await Promise.all([
+    // ── Check collection counts ──────────────────────────────────────────────
+    const [teamCount, playerCount, matchCount] = await Promise.all([
       Team.countDocuments(),
       Player.countDocuments(),
       Match.countDocuments(),
-      Match.find({ kickoffTime: { $gte: todayStart, $lt: todayEnd } })
-           .select("homeTeam.name awayTeam.name kickoffTime status")
-           .sort({ kickoffTime: 1 }),
+    ]);
+
+    const shouldSyncTeams   = forceAll || teamCount === 0;
+    const shouldSyncMatches = forceAll || matchCount === 0 || now.getSeconds() >= 0; // always fetch matches to get live score updates
+    const shouldSyncPlayers = forceAll || playerCount === 0;
+
+    // ── 1. Sync Teams ────────────────────────────────────────────────────────
+    if (shouldSyncTeams) {
+      try {
+        console.log("[Sync] Fetching teams from free REST API...");
+        const { data } = await axios.get(`${API_BASE}/teams`);
+        const teams = data.teams || [];
+        
+        const teamOps = teams.map((t) => ({
+          updateOne: {
+            filter: { apiTeamId: String(t.id) },
+            update: {
+              $set: {
+                apiTeamId: String(t.id),
+                name:      t.name_en,
+                shortName: t.fifa_code || t.name_en.slice(0, 3).toUpperCase(),
+                country:   t.name_en,
+                logoUrl:   t.flag || null,
+                group:     t.groups || null,
+              },
+              $setOnInsert: {
+                starRating: 3,
+                stats: { played: 0, won: 0, drawn: 0, lost: 0,
+                         goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 0 },
+              },
+            },
+            upsert: true,
+          },
+        }));
+
+        if (teamOps.length) await Team.bulkWrite(teamOps);
+        results.teams = teams.length;
+        console.log(`[Sync] Teams synced: ${teams.length}`);
+      } catch (err) {
+        results.errors.push(`teams: ${err.message}`);
+      }
+    }
+
+    // Load team mappings (needed for matches and players)
+    const teamDocs = await Team.find({}, { _id: 1, name: 1, logoUrl: 1, apiTeamId: 1, shortName: 1 });
+    const teamIdMap = Object.fromEntries(teamDocs.map(t => [t.name, t._id]));
+    const teamLogoMap = Object.fromEntries(teamDocs.map(t => [t.apiTeamId, t.logoUrl]));
+    const teamShortMap = Object.fromEntries(teamDocs.map(t => [t.apiTeamId, t.shortName]));
+
+    // ── 2. Sync Players (Superstars Seeder) ──────────────────────────────────
+    if (shouldSyncPlayers && teamDocs.length > 0) {
+      try {
+        console.log("[Sync] Seeding top superstars...");
+        const seededCount = await seedTopPlayers(teamIdMap);
+        results.players = seededCount;
+      } catch (err) {
+        results.errors.push(`players: ${err.message}`);
+      }
+    }
+
+    // ── 3. Sync Matches ──────────────────────────────────────────────────────
+    if (shouldSyncMatches) {
+      try {
+        console.log("[Sync] Fetching games from free REST API...");
+        const { data } = await axios.get(`${API_BASE}/games`);
+        const games = data.games || [];
+
+        const matchOps = games.map((g) => ({
+          updateOne: {
+            filter: { apiMatchId: String(g.id) },
+            update: {
+              $set: {
+                apiMatchId:          String(g.id),
+                stage:               mapStage(g.type),
+                group:               g.group !== "null" && g.group ? g.group : null,
+                matchday:            g.matchday ? parseInt(g.matchday) : null,
+                "homeTeam.name":     g.home_team_name_en,
+                "homeTeam.shortName":teamShortMap[String(g.home_team_id)] || g.home_team_name_en.slice(0, 3).toUpperCase(),
+                "homeTeam.logoUrl":  teamLogoMap[String(g.home_team_id)] || null,
+                "homeTeam.apiTeamId":String(g.home_team_id),
+                "awayTeam.name":     g.away_team_name_en,
+                "awayTeam.shortName":teamShortMap[String(g.away_team_id)] || g.away_team_name_en.slice(0, 3).toUpperCase(),
+                "awayTeam.logoUrl":  teamLogoMap[String(g.away_team_id)] || null,
+                "awayTeam.apiTeamId":String(g.away_team_id),
+                "score.home":        g.home_score ? parseInt(g.home_score) : 0,
+                "score.away":        g.away_score ? parseInt(g.away_score) : 0,
+                status:              mapStatus(g),
+                minute:              g.time_elapsed !== "notstarted" ? (parseInt(g.time_elapsed) || null) : null,
+                kickoffTime:         parseKickoff(g.local_date),
+                venue:               stadiumMap[String(g.stadium_id)] || `Stadium ${g.stadium_id}`,
+                lastSyncedAt:        new Date(),
+              },
+            },
+            upsert: true,
+          },
+        }));
+
+        if (matchOps.length) await Match.bulkWrite(matchOps);
+        results.matches = games.length;
+        console.log(`[Sync] Matches synced: ${games.length}`);
+      } catch (err) {
+        results.errors.push(`matches: ${err.message}`);
+      }
+    }
+
+    // ── 4. Broadcast via Socket.io ──────────────────────────────────────────
+    if (results.teams > 0 || results.players > 0 || results.matches > 0) {
+      io.emit("dataRefreshed", {
+        teams:   results.teams,
+        players: results.players,
+        matches: results.matches,
+        at:      now.toISOString(),
+      });
+    }
+
+    const hasErrors = results.errors.length > 0;
+    res.status(hasErrors ? 207 : 200).json({
+      status:  hasErrors ? "partial" : "ok",
+      message: "Sync completed successfully",
+      results,
+    });
+
+  } catch (globalErr) {
+    console.error("[Sync] Global error:", globalErr.message);
+    res.status(500).json({ message: globalErr.message });
+  }
+});
+
+// ─── GET /api/sync/status ─────────────────────────────────────────────────────
+// Public health-check — shows DB record counts.
+router.get("/status", async (req, res) => {
+  try {
+    const [teams, players, matches] = await Promise.all([
+      Team.countDocuments(),
+      Player.countDocuments(),
+      Match.countDocuments(),
     ]);
 
     res.json({
-      db:    { teams, players, matches },
-      today: { count: todayMatches.length, matches: todayMatches },
+      db: { teams, players, matches },
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
