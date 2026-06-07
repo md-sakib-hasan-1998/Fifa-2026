@@ -7,11 +7,27 @@ const { protect, authorize, piAuth } = require("../middleware/authMiddleware");
 // Public. Returns all matches with optional filters.
 router.get("/", async (req, res) => {
   try {
-    const { status, stage, group } = req.query;
+    const { status, stage, group, team } = req.query;
     const filter = {};
     if (status) filter.status = status;
-    if (stage) filter.stage = stage;
-    if (group) filter.group = group;
+    if (stage)  filter.stage  = stage;
+    if (group)  filter.group  = group;
+
+    // If ?team=<mongoId>, look up the team's apiTeamId and filter by that
+    if (team) {
+      try {
+        const Team = require("../models/Team");
+        const teamDoc = await Team.findById(team);
+        if (teamDoc) {
+          filter.$or = [
+            { "homeTeam.apiTeamId": teamDoc.apiTeamId },
+            { "awayTeam.apiTeamId": teamDoc.apiTeamId },
+            { "homeTeam.name":      teamDoc.name },
+            { "awayTeam.name":      teamDoc.name },
+          ];
+        }
+      } catch (e) { /* invalid id — ignore */ }
+    }
 
     const matches = await Match.find(filter)
       .sort({ kickoffTime: 1 })

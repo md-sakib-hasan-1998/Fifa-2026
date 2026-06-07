@@ -4,6 +4,7 @@ import MatchCard from '../components/match/MatchCard'
 import Spinner from '../components/common/Spinner'
 import EmptyState from '../components/common/EmptyState'
 import LiveDot from '../components/common/LiveDot'
+import TournamentCountdown from '../components/common/TournamentCountdown'
 import { useLiveMatches } from '../hooks/useLiveMatches'
 
 const FILTERS = ['All', 'Live', 'Today', 'Finished', 'Upcoming']
@@ -29,13 +30,16 @@ const Home = () => {
   return (
     <Layout>
       {/* Hero */}
-      <div className="text-center mb-10 animate-fade-in">
+      <div className="text-center mb-8 animate-fade-in">
         <p className="section-subtitle mb-2">USA · Canada · Mexico</p>
         <h1 className="font-display text-6xl sm:text-8xl text-ice tracking-wider leading-none">
           WORLD<span className="text-pitch">CUP</span>
         </h1>
         <p className="font-display text-2xl text-ice/20 tracking-[0.3em] mt-1">2026</p>
       </div>
+
+      {/* Tournament countdown */}
+      <TournamentCountdown />
 
       {/* Live count banner */}
       {liveCount > 0 && (

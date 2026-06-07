@@ -8,6 +8,7 @@ import Home        from './pages/Home'
 import Matches     from './pages/Matches'
 import MatchDetail from './pages/MatchDetail'
 import Teams       from './pages/Teams'
+import TeamDetail  from './pages/TeamDetail'
 import Players     from './pages/Players'
 import Login       from './pages/Login'
 import Signup      from './pages/Signup'
@@ -58,6 +59,7 @@ const AppRoutes = () => (
     <Route path="/matches"   element={<Matches />} />
     <Route path="/matches/:id" element={<MatchDetail />} />
     <Route path="/teams"     element={<Teams />} />
+    <Route path="/teams/:id" element={<TeamDetail />} />
     <Route path="/players"   element={<Players />} />
     <Route path="/login"     element={<Login />} />
     <Route path="/signup"    element={<Signup />} />

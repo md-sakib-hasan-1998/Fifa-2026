@@ -321,9 +321,10 @@ router.post("/refresh", piAuth, async (req, res) => {
 
     // Load team mappings (needed for matches and players)
     const teamDocs = await Team.find({}, { _id: 1, name: 1, logoUrl: 1, apiTeamId: 1, shortName: 1 });
-    const teamIdMap = Object.fromEntries(teamDocs.map(t => [t.name, t._id]));
-    const teamLogoMap = Object.fromEntries(teamDocs.map(t => [t.apiTeamId, t.logoUrl]));
-    const teamShortMap = Object.fromEntries(teamDocs.map(t => [t.apiTeamId, t.shortName]));
+    const teamIdMap     = Object.fromEntries(teamDocs.map(t => [t.name, t._id]));
+    const teamLogoMap   = Object.fromEntries(teamDocs.map(t => [t.apiTeamId, t.logoUrl]));
+    const teamShortMap  = Object.fromEntries(teamDocs.map(t => [t.apiTeamId, t.shortName]));
+    const teamMongoMap  = Object.fromEntries(teamDocs.map(t => [t.apiTeamId, t._id])); // MongoDB _id by apiTeamId
 
     // ── 2. Sync Players (Superstars Seeder) ──────────────────────────────────
     if (shouldSyncPlayers && teamDocs.length > 0) {
@@ -356,10 +357,12 @@ router.post("/refresh", piAuth, async (req, res) => {
                 "homeTeam.shortName":teamShortMap[String(g.home_team_id)] || (g.home_team_name_en ? g.home_team_name_en.slice(0, 3).toUpperCase() : "TBD"),
                 "homeTeam.logoUrl":  teamLogoMap[String(g.home_team_id)] || null,
                 "homeTeam.apiTeamId":String(g.home_team_id),
+                "homeTeam._id":      teamMongoMap[String(g.home_team_id)] || null,
                 "awayTeam.name":     g.away_team_name_en || g.away_team_label || "TBD",
                 "awayTeam.shortName":teamShortMap[String(g.away_team_id)] || (g.away_team_name_en ? g.away_team_name_en.slice(0, 3).toUpperCase() : "TBD"),
                 "awayTeam.logoUrl":  teamLogoMap[String(g.away_team_id)] || null,
                 "awayTeam.apiTeamId":String(g.away_team_id),
+                "awayTeam._id":      teamMongoMap[String(g.away_team_id)] || null,
                 "score.home":        g.home_score ? parseInt(g.home_score) : 0,
                 "score.away":        g.away_score ? parseInt(g.away_score) : 0,
                 status:              mapStatus(g),

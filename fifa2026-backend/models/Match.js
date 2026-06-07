@@ -60,16 +60,18 @@ const matchSchema = new mongoose.Schema(
 
     // ─── Teams ─────────────────────────────────────────────
     homeTeam: {
-      name: { type: String, required: true },
+      _id:       { type: mongoose.Schema.Types.ObjectId, default: null }, // MongoDB Team _id
+      name:      { type: String, required: true },
       shortName: { type: String }, // e.g. "BRA"
-      logoUrl: { type: String },   // official team logo URL
+      logoUrl:   { type: String },   // official team logo URL
       apiTeamId: { type: String }, // ID from sports API
     },
 
     awayTeam: {
-      name: { type: String, required: true },
+      _id:       { type: mongoose.Schema.Types.ObjectId, default: null }, // MongoDB Team _id
+      name:      { type: String, required: true },
       shortName: { type: String },
-      logoUrl: { type: String },
+      logoUrl:   { type: String },
       apiTeamId: { type: String },
     },
 

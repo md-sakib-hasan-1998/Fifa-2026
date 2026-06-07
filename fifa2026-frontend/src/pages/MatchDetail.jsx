@@ -119,7 +119,7 @@ const MatchDetail = () => {
               ? <img src={match.homeTeam.logoUrl} alt="" className="w-20 h-20 object-contain mx-auto mb-2" />
               : <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center font-display text-3xl text-ice/30 mx-auto mb-2">{match.homeTeam?.shortName?.[0]}</div>
             }
-            <p className="font-display text-2xl text-ice tracking-wide">{match.homeTeam?.name}</p>
+            <Link to={match.homeTeam?._id ? `/teams/${match.homeTeam._id}` : '#'} className="font-display text-2xl text-ice tracking-wide hover:text-pitch transition-colors">{match.homeTeam?.name}</Link>
             <p className="text-xs text-ice/30 mt-0.5">{match.homeTeam?.shortName}</p>
           </div>
 
@@ -141,7 +141,7 @@ const MatchDetail = () => {
               ? <img src={match.awayTeam.logoUrl} alt="" className="w-20 h-20 object-contain mx-auto mb-2" />
               : <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center font-display text-3xl text-ice/30 mx-auto mb-2">{match.awayTeam?.shortName?.[0]}</div>
             }
-            <p className="font-display text-2xl text-ice tracking-wide">{match.awayTeam?.name}</p>
+            <Link to={match.awayTeam?._id ? `/teams/${match.awayTeam._id}` : '#'} className="font-display text-2xl text-ice tracking-wide hover:text-pitch transition-colors">{match.awayTeam?.name}</Link>
             <p className="text-xs text-ice/30 mt-0.5">{match.awayTeam?.shortName}</p>
           </div>
         </div>

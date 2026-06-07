@@ -1,4 +1,5 @@
 import Navbar from './Navbar'
+import Notifications from '../common/Notifications'
 
 const Footer = () => (
   <footer className="border-t border-white/5 mt-20 py-8 text-center">
@@ -14,6 +15,7 @@ const Layout = ({ children }) => (
       {children}
     </main>
     <Footer />
+    <Notifications />
   </div>
 )
 
