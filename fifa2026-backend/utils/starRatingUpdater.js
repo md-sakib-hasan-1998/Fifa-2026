@@ -74,6 +74,9 @@ const updateStarRatings = async (force = false) => {
         continue;
       }
 
+      // Load all players of this team from the database in a single query
+      const dbPlayers = await Player.find({ team: team._id });
+
       let playerStarsSum = 0;
       let ratedPlayersCount = 0;
 
@@ -85,32 +88,37 @@ const updateStarRatings = async (force = false) => {
         playerStarsSum += pStars;
         ratedPlayersCount++;
 
-        // Find the player in our database belonging to this team.
-        // We match by team reference and perform a regex match on their name.
-        const escapedName = pName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        let dbPlayer = await Player.findOne({
-          team: team._id,
-          name: { $regex: new RegExp(`^${escapedName}$`, "i") }
-        });
+        // Find the player in memory
+        let dbPlayer = dbPlayers.find(
+          (dp) => dp.name.trim().toLowerCase() === pName.trim().toLowerCase()
+        );
 
-        // Fallback: match by the last name if not found
         if (!dbPlayer) {
-          const nameParts = pName.split(" ");
-          const lastName = nameParts[nameParts.length - 1];
+          // Fallback: match by the last name in memory
+          const nameParts = pName.trim().split(" ");
+          const lastName = nameParts[nameParts.length - 1]?.toLowerCase();
           if (lastName && lastName.length > 2) {
-            dbPlayer = await Player.findOne({
-              team: team._id,
-              name: { $regex: new RegExp(lastName, "i") }
-            });
+            dbPlayer = dbPlayers.find((dp) =>
+              dp.name.toLowerCase().includes(lastName)
+            );
           }
         }
 
         if (dbPlayer) {
           // Update the existing player's starRating
-          dbPlayer.starRating = pStars;
-          if (p.jerseyNumber) dbPlayer.jerseyNumber = p.jerseyNumber;
-          await dbPlayer.save();
-          playersUpdated++;
+          let changed = false;
+          if (dbPlayer.starRating !== pStars) {
+            dbPlayer.starRating = pStars;
+            changed = true;
+          }
+          if (p.jerseyNumber && dbPlayer.jerseyNumber !== p.jerseyNumber) {
+            dbPlayer.jerseyNumber = p.jerseyNumber;
+            changed = true;
+          }
+          if (changed) {
+            await dbPlayer.save();
+            playersUpdated++;
+          }
         } else {
           // If the player doesn't exist, create it in the database!
           // This populates the player section so it doesn't fail to load.
