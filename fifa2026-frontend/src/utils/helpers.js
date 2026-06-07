@@ -1,12 +1,14 @@
-// Format a kickoff date/time
+const BDT = { timeZone: 'Asia/Dhaka' }
+
+// Format a kickoff time in BDT (Bangladesh Standard Time, UTC+6)
 export const formatMatchTime = (dateStr) => {
   const d = new Date(dateStr)
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleTimeString('en-US', { ...BDT, hour: '2-digit', minute: '2-digit' })
 }
 
 export const formatMatchDate = (dateStr) => {
   const d = new Date(dateStr)
-  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+  return d.toLocaleDateString('en-US', { ...BDT, weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 // Render star rating as filled/empty stars string (used by StarRating component)

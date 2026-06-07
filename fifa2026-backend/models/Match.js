@@ -106,6 +106,53 @@ const matchSchema = new mongoose.Schema(
     goals: [goalEventSchema],
     cards: [cardEventSchema],
 
+    // Lineups & Formations (Home/Away)
+    lineups: {
+      home: {
+        formation: { type: String, default: "4-3-3" },
+        startingXI: [{
+          name: { type: String },
+          jerseyNumber: { type: Number },
+          position: { type: String },
+          photoUrl: { type: String, default: null }
+        }],
+        bench: [{
+          name: { type: String },
+          jerseyNumber: { type: Number },
+          position: { type: String, default: null }
+        }]
+      },
+      away: {
+        formation: { type: String, default: "4-3-3" },
+        startingXI: [{
+          name: { type: String },
+          jerseyNumber: { type: Number },
+          position: { type: String },
+          photoUrl: { type: String, default: null }
+        }],
+        bench: [{
+          name: { type: String },
+          jerseyNumber: { type: Number },
+          position: { type: String },
+          photoUrl: { type: String, default: null }
+        }]
+      }
+    },
+
+    substitutions: [{
+      minute: { type: Number },
+      team: { type: String }, // 'home' or 'away'
+      playerOut: { type: String },
+      playerIn: { type: String }
+    }],
+
+    penalties: [{
+      order: { type: Number },
+      team: { type: String }, // 'home' or 'away'
+      playerName: { type: String },
+      scored: { type: Boolean }
+    }],
+
     // ─── Stream link ───────────────────────────────────────
     // Admin or moderator posts the live stream URL here
     streamLink: {

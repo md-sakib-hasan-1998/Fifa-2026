@@ -53,6 +53,35 @@ const MatchDetail = () => {
   const isLive     = match.status === 'live' || match.status === 'halftime'
   const isFinished = match.status === 'finished'
 
+  const renderPlayerRow = (player, i) => {
+    if (!player) return null;
+    const initials = player.name
+      ? player.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+      : '??';
+    return (
+      <div key={player.jerseyNumber || i} className="flex items-center gap-3 bg-white/5 hover:bg-white/10 transition-colors p-2.5 rounded-xl border border-white/5">
+        <span className="w-8 text-center font-mono font-bold text-xs text-gold shrink-0 bg-gold/15 rounded-lg py-1">
+          {player.jerseyNumber || '-'}
+        </span>
+        
+        {player.photoUrl ? (
+          <img src={player.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10" />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center font-display text-[10px] font-bold text-ice/70 shrink-0 border border-white/5">
+            {initials}
+          </div>
+        )}
+
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-ice font-medium truncate leading-tight">{player.name}</p>
+          <span className="text-[10px] text-ice/45 font-semibold uppercase tracking-wider mt-0.5 inline-block">
+            {player.position}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Layout>
       <Link to="/matches" className="text-ice/30 hover:text-ice text-sm mb-6 inline-flex items-center gap-1">
@@ -120,35 +149,175 @@ const MatchDetail = () => {
         <WatchButton match={match} onLinkPosted={fetchMatch} />
       </div>
 
-      {/* Goals */}
-      {match.goals?.length > 0 && (
-        <div className="card p-5 mb-4 animate-slide-up stagger-2">
-          <h3 className="font-display text-xl text-ice tracking-wide mb-4">⚽ GOALS</h3>
-          <div className="space-y-2">
-            {match.goals.map((g, i) => (
-              <div key={i} className={`flex items-center gap-3 text-sm ${g.team === 'home' ? '' : 'flex-row-reverse text-right'}`}>
-                <span className="text-pitch font-bold tabular-nums w-8">{g.minute}'</span>
-                <span className="text-ice/80">{g.playerName}</span>
-                {g.type !== 'goal' && <span className="text-xs text-ice/30">({g.type === 'own_goal' ? 'OG' : 'Pen'})</span>}
+      {/* Tie Breaker Penalty Shootout Detail */}
+      {match.penalties?.length > 0 && (
+        <div className="card p-6 mb-6 border border-gold/30 bg-gold/5 shadow-[0_0_20px_rgba(212,175,55,0.05)] animate-slide-up">
+          <h3 className="font-display text-lg text-gold tracking-wide mb-4 flex items-center gap-2">
+            🏆 PENALTY SHOOTOUT DETAIL
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Home team pens */}
+            <div>
+              <h4 className="text-sm font-semibold text-ice/80 mb-3">{match.homeTeam?.name}</h4>
+              <div className="space-y-2">
+                {match.penalties.filter(p => p.team === 'home').map((p, i) => (
+                  <div key={i} className="flex items-center gap-3 text-sm bg-white/5 p-3 rounded-xl border border-white/5">
+                    <span className="text-ice/30 font-mono w-4">#{p.order}</span>
+                    <span className="text-ice/85 font-medium">{p.playerName}</span>
+                    <span className={`ml-auto font-bold text-sm ${p.scored ? 'text-pitch bg-pitch/10 px-2 py-0.5 rounded' : 'text-scarlet bg-scarlet/10 px-2 py-0.5 rounded'}`}>
+                      {p.scored ? '✓ SCORED' : '✗ MISSED'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Away team pens */}
+            <div>
+              <h4 className="text-sm font-semibold text-ice/80 mb-3">{match.awayTeam?.name}</h4>
+              <div className="space-y-2">
+                {match.penalties.filter(p => p.team === 'away').map((p, i) => (
+                  <div key={i} className="flex items-center gap-3 text-sm bg-white/5 p-3 rounded-xl border border-white/5">
+                    <span className="text-ice/30 font-mono w-4">#{p.order}</span>
+                    <span className="text-ice/85 font-medium">{p.playerName}</span>
+                    <span className={`ml-auto font-bold text-sm ${p.scored ? 'text-pitch bg-pitch/10 px-2 py-0.5 rounded' : 'text-scarlet bg-scarlet/10 px-2 py-0.5 rounded'}`}>
+                      {p.scored ? '✓ SCORED' : '✗ MISSED'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Goals & Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Goals */}
+        <div className="card p-6 animate-slide-up">
+          <h3 className="font-display text-lg text-ice tracking-wide mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
+            ⚽ GOALS
+          </h3>
+          {match.goals?.length > 0 ? (
+            <div className="space-y-3">
+              {match.goals.map((g, i) => (
+                <div key={i} className={`flex items-center gap-3 text-sm ${g.team === 'home' ? '' : 'flex-row-reverse text-right'}`}>
+                  <span className="text-pitch font-bold tabular-nums w-8">{g.minute}'</span>
+                  <div>
+                    <span className="text-ice/85 font-medium">{g.playerName}</span>
+                    {g.type !== 'goal' && <span className="text-xs text-ice/45 ml-1.5">({g.type === 'own_goal' ? 'OG' : 'Pen'})</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-ice/30 italic">No goal events reported</p>
+          )}
+        </div>
+
+        {/* Cards */}
+        <div className="card p-6 animate-slide-up">
+          <h3 className="font-display text-lg text-ice tracking-wide mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
+            🟨 CARDS
+          </h3>
+          {match.cards?.length > 0 ? (
+            <div className="space-y-3">
+              {match.cards.map((c, i) => (
+                <div key={i} className={`flex items-center gap-3 text-sm ${c.team === 'home' ? '' : 'flex-row-reverse text-right'}`}>
+                  <span className="text-ice/30 tabular-nums w-8">{c.minute}'</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-3 h-4 rounded-sm shrink-0 ${c.cardType === 'red' ? 'bg-scarlet' : 'bg-gold'}`} />
+                    <span className="text-ice/85 font-medium">{c.playerName}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-ice/30 italic">No card events reported</p>
+          )}
+        </div>
+      </div>
+
+      {/* Substitutions */}
+      {match.substitutions?.length > 0 && (
+        <div className="card p-6 mb-6 animate-slide-up">
+          <h3 className="font-display text-lg text-ice tracking-wide mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
+            🔄 SUBSTITUTIONS
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {match.substitutions.map((s, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm bg-white/5 p-3 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                <span className="text-pitch font-bold tabular-nums bg-pitch/10 px-2.5 py-1 rounded-lg text-xs shrink-0">{s.minute}'</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 text-ice/85 truncate">
+                    <span className="text-pitch text-xs shrink-0">⬆</span>
+                    <span className="truncate font-medium">{s.playerIn}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-ice/40 truncate text-xs mt-0.5">
+                    <span className="text-scarlet text-xs shrink-0">⬇</span>
+                    <span className="truncate">{s.playerOut}</span>
+                  </div>
+                </div>
+                <span className="text-[10px] text-ice/35 font-semibold uppercase tracking-wider bg-white/5 px-2 py-0.5 rounded-full shrink-0">
+                  {s.team}
+                </span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Cards */}
-      {match.cards?.length > 0 && (
-        <div className="card p-5 animate-slide-up stagger-3">
-          <h3 className="font-display text-xl text-ice tracking-wide mb-4">🟨 CARDS</h3>
-          <div className="space-y-2">
-            {match.cards.map((c, i) => (
-              <div key={i} className="flex items-center gap-3 text-sm">
-                <span className={`w-3 h-4 rounded-sm ${c.cardType === 'red' ? 'bg-scarlet' : 'bg-gold'}`} />
-                <span className="text-ice/40 tabular-nums">{c.minute}'</span>
-                <span className="text-ice/80">{c.playerName}</span>
-                <span className="text-xs text-ice/30 ml-auto">{c.team}</span>
+      {/* Lineups */}
+      {match.lineups?.home && (
+        <div className="card p-6 mb-6 animate-slide-up">
+          <h3 className="font-display text-xl text-ice tracking-wider mb-6 flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-3 gap-2">
+            <span>📋 TEAM LINEUPS</span>
+            <span className="text-xs font-sans text-ice/40 tracking-normal font-normal">
+              {match.homeTeam?.name} ({match.lineups.home.formation}) vs {match.awayTeam?.name} ({match.lineups.away.formation})
+            </span>
+          </h3>
+
+          <h4 className="text-xs font-bold text-gold uppercase tracking-widest mb-4">STARTING ELEVEN</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {/* Home XI */}
+            <div>
+              <h5 className="text-sm font-semibold text-ice/85 mb-3 flex items-center justify-between">
+                <span>{match.homeTeam?.name}</span>
+                <span className="text-xs text-gold/60 font-mono font-medium">{match.lineups.home.formation}</span>
+              </h5>
+              <div className="space-y-2">
+                {match.lineups.home.startingXI.map(renderPlayerRow)}
               </div>
-            ))}
+            </div>
+
+            {/* Away XI */}
+            <div>
+              <h5 className="text-sm font-semibold text-ice/85 mb-3 flex items-center justify-between">
+                <span>{match.awayTeam?.name}</span>
+                <span className="text-xs text-gold/60 font-mono font-medium">{match.lineups.away.formation}</span>
+              </h5>
+              <div className="space-y-2">
+                {match.lineups.away.startingXI.map(renderPlayerRow)}
+              </div>
+            </div>
+          </div>
+
+          <h4 className="text-xs font-bold text-gold uppercase tracking-widest mb-4 pt-4 border-t border-white/5">BENCH PLAYERS</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Home Bench */}
+            <div>
+              <h5 className="text-sm font-semibold text-ice/50 mb-3">{match.homeTeam?.name} Bench</h5>
+              <div className="space-y-2">
+                {match.lineups.home.bench.map(renderPlayerRow)}
+              </div>
+            </div>
+
+            {/* Away Bench */}
+            <div>
+              <h5 className="text-sm font-semibold text-ice/50 mb-3">{match.awayTeam?.name} Bench</h5>
+              <div className="space-y-2">
+                {match.lineups.away.bench.map(renderPlayerRow)}
+              </div>
+            </div>
           </div>
         </div>
       )}

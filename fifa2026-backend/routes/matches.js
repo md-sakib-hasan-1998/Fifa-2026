@@ -126,6 +126,17 @@ router.post("/pi/update", piAuth, async (req, res) => {
       return res.status(404).json({ message: `No match found with apiMatchId: ${apiMatchId}` });
     }
 
+    // Run match enrichment to ensure lineups, subs, and shootout details are present
+    try {
+      const { enrichMatch } = require("../utils/matchEnricher");
+      const isModified = await enrichMatch(match);
+      if (isModified) {
+        await match.save();
+      }
+    } catch (enrichErr) {
+      console.error("[Pi Update] Match enrichment error:", enrichErr.message);
+    }
+
     // Broadcast the update to every connected browser via Socket.io room and global events
     const io = req.app.get("io");
     broadcastScoreUpdate(io, match._id, {

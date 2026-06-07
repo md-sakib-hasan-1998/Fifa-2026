@@ -11,7 +11,12 @@ const TeamCard = ({ team }) => (
       <div className="min-w-0">
         <p className="font-display text-lg text-ice tracking-wide leading-tight truncate">{team.name}</p>
         <p className="text-xs text-ice/40">{team.group ? `Group ${team.group}` : team.country}</p>
-        <StarRating rating={team.starRating} size="sm" />
+        <div className="flex items-center gap-2">
+          <StarRating rating={team.starRating} size="sm" />
+          {team.fifaRanking && (
+            <span className="text-xs text-ice/25">FIFA #{team.fifaRanking}</span>
+          )}
+        </div>
       </div>
       {team.eliminated && (
         <span className="ml-auto text-xs text-ice/30 bg-white/5 px-2 py-0.5 rounded">Out</span>

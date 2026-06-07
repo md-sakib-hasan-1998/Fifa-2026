@@ -68,75 +68,151 @@ const parseKickoff = (dateStr) => {
   }
 };
 
+// ─── FIFA World Rankings (April 2026 update) ─────────────────────────────────
+// Used to auto-assign star ratings to teams.
+const FIFA_RANKINGS = {
+  "France": 1, "Spain": 2, "Argentina": 3, "England": 4, "Portugal": 5,
+  "Brazil": 6, "Netherlands": 7, "Morocco": 8, "Belgium": 9, "Germany": 10,
+  "Croatia": 11, "Italy": 12, "Colombia": 13, "Senegal": 14, "Mexico": 15,
+  "United States": 16, "Uruguay": 17, "Japan": 18, "Switzerland": 19,
+  "Denmark": 20, "Iran": 21, "Austria": 23, "South Korea": 24,
+  "Australia": 25, "Algeria": 27, "Norway": 29, "Sweden": 30,
+  "Ecuador": 44, "Scotland": 32, "Turkey": 31, "Egypt": 34, "Chile": 35,
+  "Saudi Arabia": 56, "Tunisia": 38, "Ivory Coast": 49, "Nigeria": 42,
+  "Qatar": 55, "New Zealand": 82, "Cape Verde": 73, "Ghana": 60,
+  "Paraguay": 52, "Jordan": 66, "Iraq": 63, "Haiti": 85,
+  "Democratic Republic of the Congo": 67, "South Africa": 64,
+  "Bosnia and Herzegovina": 58, "Czech Republic": 37,
+  "Canada": 44, "Panama": 80, "Jamaica": 55,
+  "Uzbekistan": 72, "Curaçao": 74,
+};
+
+// Convert FIFA ranking to star rating (1-5 stars)
+const rankToStars = (rank) => {
+  if (!rank) return 2;
+  if (rank <= 10) return 5;
+  if (rank <= 20) return 4.5;
+  if (rank <= 30) return 4;
+  if (rank <= 50) return 3;
+  if (rank <= 70) return 2;
+  return 1;
+};
+
 // ─── Superstars Seeder ────────────────────────────────────────────────────────
 const seedTopPlayers = async (teamMap) => {
+  // ~80 world-class players covering all major teams
+  // photoUrl: TheSportsDB player thumbnail (free CDN, no API key)
   const topPlayers = [
     // Argentina
-    { name: "Lionel Messi", position: "Forward", jerseyNumber: 10, teamName: "Argentina", age: 38 },
-    { name: "Lautaro Martínez", position: "Forward", jerseyNumber: 22, teamName: "Argentina", age: 28 },
-    { name: "Enzo Fernández", position: "Midfielder", jerseyNumber: 24, teamName: "Argentina", age: 25 },
-    
-    // Portugal
-    { name: "Cristiano Ronaldo", position: "Forward", jerseyNumber: 7, teamName: "Portugal", age: 41 },
-    { name: "Bruno Fernandes", position: "Midfielder", jerseyNumber: 8, teamName: "Portugal", age: 31 },
-    { name: "Bernardo Silva", position: "Midfielder", jerseyNumber: 10, teamName: "Portugal", age: 31 },
-
+    { name: "Lionel Messi",       position: "Forward",    jerseyNumber: 10, teamName: "Argentina",     age: 38, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/yb7hm91511300982.jpg" },
+    { name: "Lautaro Martínez",   position: "Forward",    jerseyNumber: 22, teamName: "Argentina",     age: 28, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/d2ggp61587308940.jpg" },
+    { name: "Enzo Fernández",     position: "Midfielder", jerseyNumber: 24, teamName: "Argentina",     age: 25, photoUrl: null },
     // France
-    { name: "Kylian Mbappé", position: "Forward", jerseyNumber: 10, teamName: "France", age: 27 },
-    { name: "Antoine Griezmann", position: "Midfielder", jerseyNumber: 7, teamName: "France", age: 35 },
-    { name: "Aurélien Tchouaméni", position: "Midfielder", jerseyNumber: 8, teamName: "France", age: 26 },
-
-    // England
-    { name: "Harry Kane", position: "Forward", jerseyNumber: 9, teamName: "England", age: 32 },
-    { name: "Jude Bellingham", position: "Midfielder", jerseyNumber: 10, teamName: "England", age: 22 },
-    { name: "Bukayo Saka", position: "Forward", jerseyNumber: 7, teamName: "England", age: 24 },
-    { name: "Phil Foden", position: "Midfielder", jerseyNumber: 11, teamName: "England", age: 26 },
-
-    // Brazil
-    { name: "Vinicius Junior", position: "Forward", jerseyNumber: 7, teamName: "Brazil", age: 25 },
-    { name: "Neymar Jr", position: "Forward", jerseyNumber: 10, teamName: "Brazil", age: 34 },
-    { name: "Rodrygo", position: "Forward", jerseyNumber: 11, teamName: "Brazil", age: 25 },
-
-    // Belgium
-    { name: "Kevin De Bruyne", position: "Midfielder", jerseyNumber: 7, teamName: "Belgium", age: 34 },
-    { name: "Romelu Lukaku", position: "Forward", jerseyNumber: 9, teamName: "Belgium", age: 33 },
-
-    // Norway
-    { name: "Erling Haaland", position: "Forward", jerseyNumber: 9, teamName: "Norway", age: 25 },
-    { name: "Martin Ødegaard", position: "Midfielder", jerseyNumber: 10, teamName: "Norway", age: 27 },
-
+    { name: "Kylian Mbappé",      position: "Forward",    jerseyNumber: 10, teamName: "France",        age: 27, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/ryqwyp1519482602.jpg" },
+    { name: "Antoine Griezmann",  position: "Midfielder", jerseyNumber: 7,  teamName: "France",        age: 35, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/rqr1zt1519733611.jpg" },
+    { name: "Aurélien Tchouaméni",position: "Midfielder", jerseyNumber: 8,  teamName: "France",        age: 26, photoUrl: null },
+    { name: "Ousmane Dembélé",    position: "Forward",    jerseyNumber: 11, teamName: "France",        age: 28, photoUrl: null },
     // Spain
-    { name: "Lamine Yamal", position: "Forward", jerseyNumber: 19, teamName: "Spain", age: 18 },
-    { name: "Rodri", position: "Midfielder", jerseyNumber: 16, teamName: "Spain", age: 29 },
-    { name: "Pedri", position: "Midfielder", jerseyNumber: 8, teamName: "Spain", age: 23 },
-
+    { name: "Lamine Yamal",       position: "Forward",    jerseyNumber: 19, teamName: "Spain",         age: 18, photoUrl: null },
+    { name: "Rodri",              position: "Midfielder", jerseyNumber: 16, teamName: "Spain",         age: 29, photoUrl: null },
+    { name: "Pedri",              position: "Midfielder", jerseyNumber: 8,  teamName: "Spain",         age: 23, photoUrl: null },
+    { name: "Álvaro Morata",      position: "Forward",    jerseyNumber: 7,  teamName: "Spain",         age: 32, photoUrl: null },
+    // England
+    { name: "Harry Kane",         position: "Forward",    jerseyNumber: 9,  teamName: "England",       age: 32, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/4kgep01519741528.jpg" },
+    { name: "Jude Bellingham",    position: "Midfielder", jerseyNumber: 10, teamName: "England",       age: 22, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/8l0bxb1671441200.jpg" },
+    { name: "Bukayo Saka",        position: "Forward",    jerseyNumber: 7,  teamName: "England",       age: 24, photoUrl: null },
+    { name: "Phil Foden",         position: "Midfielder", jerseyNumber: 11, teamName: "England",       age: 26, photoUrl: null },
+    // Portugal
+    { name: "Cristiano Ronaldo",  position: "Forward",    jerseyNumber: 7,  teamName: "Portugal",      age: 41, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/pucpit1519741414.jpg" },
+    { name: "Bruno Fernandes",    position: "Midfielder", jerseyNumber: 8,  teamName: "Portugal",      age: 31, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/gk0l2x1588603370.jpg" },
+    { name: "Bernardo Silva",     position: "Midfielder", jerseyNumber: 10, teamName: "Portugal",      age: 31, photoUrl: null },
+    { name: "Rafael Leão",        position: "Forward",    jerseyNumber: 17, teamName: "Portugal",      age: 26, photoUrl: null },
+    // Brazil
+    { name: "Vinicius Junior",    position: "Forward",    jerseyNumber: 7,  teamName: "Brazil",        age: 25, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/v6yqjn1591887803.jpg" },
+    { name: "Rodrygo",            position: "Forward",    jerseyNumber: 11, teamName: "Brazil",        age: 25, photoUrl: null },
+    { name: "Endrick",            position: "Forward",    jerseyNumber: 9,  teamName: "Brazil",        age: 19, photoUrl: null },
+    { name: "Lucas Paquetá",      position: "Midfielder", jerseyNumber: 10, teamName: "Brazil",        age: 28, photoUrl: null },
+    // Netherlands
+    { name: "Virgil van Dijk",    position: "Defender",   jerseyNumber: 4,  teamName: "Netherlands",   age: 34, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/dnrjmg1519742207.jpg" },
+    { name: "Cody Gakpo",         position: "Forward",    jerseyNumber: 11, teamName: "Netherlands",   age: 26, photoUrl: null },
+    { name: "Memphis Depay",      position: "Forward",    jerseyNumber: 10, teamName: "Netherlands",   age: 31, photoUrl: null },
+    // Morocco
+    { name: "Achraf Hakimi",      position: "Defender",   jerseyNumber: 2,  teamName: "Morocco",       age: 27, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/bvhxpz1671441600.jpg" },
+    { name: "Hakim Ziyech",       position: "Midfielder", jerseyNumber: 7,  teamName: "Morocco",       age: 32, photoUrl: null },
+    { name: "Youssef En-Nesyri",  position: "Forward",    jerseyNumber: 19, teamName: "Morocco",       age: 28, photoUrl: null },
+    // Belgium
+    { name: "Kevin De Bruyne",    position: "Midfielder", jerseyNumber: 7,  teamName: "Belgium",       age: 34, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/uwbpxv1519741478.jpg" },
+    { name: "Romelu Lukaku",      position: "Forward",    jerseyNumber: 9,  teamName: "Belgium",       age: 33, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/ovryxv1519742038.jpg" },
     // Germany
-    { name: "Jamal Musiala", position: "Midfielder", jerseyNumber: 10, teamName: "Germany", age: 23 },
-    { name: "Florian Wirtz", position: "Midfielder", jerseyNumber: 17, teamName: "Germany", age: 23 },
-    { name: "Kai Havertz", position: "Forward", jerseyNumber: 29, teamName: "Germany", age: 26 },
-
-    // United States
-    { name: "Christian Pulisic", position: "Forward", jerseyNumber: 10, teamName: "United States", age: 27 },
-    { name: "Weston McKennie", position: "Midfielder", jerseyNumber: 8, teamName: "United States", age: 27 },
-
-    // Canada
-    { name: "Alphonso Davies", position: "Defender", jerseyNumber: 19, teamName: "Canada", age: 25 },
-
-    // Mexico
-    { name: "Santiago Giménez", position: "Forward", jerseyNumber: 11, teamName: "Mexico", age: 25 },
-
-    // Egypt
-    { name: "Mohamed Salah", position: "Forward", jerseyNumber: 10, teamName: "Egypt", age: 33 },
-
-    // South Korea
-    { name: "Heung-min Son", position: "Forward", jerseyNumber: 7, teamName: "South Korea", age: 33 },
-
+    { name: "Jamal Musiala",      position: "Midfielder", jerseyNumber: 10, teamName: "Germany",       age: 23, photoUrl: null },
+    { name: "Florian Wirtz",      position: "Midfielder", jerseyNumber: 17, teamName: "Germany",       age: 23, photoUrl: null },
+    { name: "Kai Havertz",        position: "Forward",    jerseyNumber: 29, teamName: "Germany",       age: 26, photoUrl: null },
+    { name: "Manuel Neuer",       position: "Goalkeeper", jerseyNumber: 1,  teamName: "Germany",       age: 39, photoUrl: null },
     // Croatia
-    { name: "Luka Modrić", position: "Midfielder", jerseyNumber: 10, teamName: "Croatia", age: 40 },
-
+    { name: "Luka Modrić",        position: "Midfielder", jerseyNumber: 10, teamName: "Croatia",       age: 40, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/t5mgq11519741395.jpg" },
+    { name: "Ivan Perišić",       position: "Forward",    jerseyNumber: 4,  teamName: "Croatia",       age: 36, photoUrl: null },
+    // Senegal
+    { name: "Sadio Mané",         position: "Forward",    jerseyNumber: 10, teamName: "Senegal",       age: 33, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/kw5qyq1519741448.jpg" },
+    { name: "Edouard Mendy",      position: "Goalkeeper", jerseyNumber: 16, teamName: "Senegal",       age: 33, photoUrl: null },
+    // Mexico
+    { name: "Santiago Giménez",   position: "Forward",    jerseyNumber: 11, teamName: "Mexico",        age: 25, photoUrl: null },
+    { name: "Hirving Lozano",     position: "Forward",    jerseyNumber: 22, teamName: "Mexico",        age: 30, photoUrl: null },
+    // United States
+    { name: "Christian Pulisic",  position: "Forward",    jerseyNumber: 10, teamName: "United States", age: 27, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/6l9hk91519742100.jpg" },
+    { name: "Weston McKennie",    position: "Midfielder", jerseyNumber: 8,  teamName: "United States", age: 27, photoUrl: null },
+    { name: "Tyler Adams",        position: "Midfielder", jerseyNumber: 4,  teamName: "United States", age: 26, photoUrl: null },
     // Uruguay
-    { name: "Federico Valverde", position: "Midfielder", jerseyNumber: 15, teamName: "Uruguay", age: 27 },
-    { name: "Darwin Núñez", position: "Forward", jerseyNumber: 9, teamName: "Uruguay", age: 26 }
+    { name: "Federico Valverde",  position: "Midfielder", jerseyNumber: 15, teamName: "Uruguay",       age: 27, photoUrl: null },
+    { name: "Darwin Núñez",       position: "Forward",    jerseyNumber: 9,  teamName: "Uruguay",       age: 26, photoUrl: null },
+    // Japan
+    { name: "Takumi Minamino",    position: "Midfielder", jerseyNumber: 10, teamName: "Japan",         age: 30, photoUrl: null },
+    { name: "Reo Hatate",         position: "Midfielder", jerseyNumber: 7,  teamName: "Japan",         age: 28, photoUrl: null },
+    // Colombia
+    { name: "James Rodríguez",    position: "Midfielder", jerseyNumber: 10, teamName: "Colombia",      age: 34, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/hjzq0y1519741441.jpg" },
+    { name: "Luis Díaz",          position: "Forward",    jerseyNumber: 7,  teamName: "Colombia",      age: 28, photoUrl: null },
+    // Switzerland
+    { name: "Granit Xhaka",       position: "Midfielder", jerseyNumber: 10, teamName: "Switzerland",   age: 33, photoUrl: null },
+    { name: "Xherdan Shaqiri",    position: "Midfielder", jerseyNumber: 23, teamName: "Switzerland",   age: 33, photoUrl: null },
+    // Egypt
+    { name: "Mohamed Salah",      position: "Forward",    jerseyNumber: 10, teamName: "Egypt",         age: 33, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/n8u2hm1519741486.jpg" },
+    // South Korea
+    { name: "Heung-min Son",      position: "Forward",    jerseyNumber: 7,  teamName: "South Korea",   age: 33, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/b0k1wq1519741485.jpg" },
+    { name: "Lee Kang-in",        position: "Midfielder", jerseyNumber: 17, teamName: "South Korea",   age: 24, photoUrl: null },
+    // Australia
+    { name: "Mat Ryan",           position: "Goalkeeper", jerseyNumber: 1,  teamName: "Australia",     age: 33, photoUrl: null },
+    { name: "Mitchell Duke",      position: "Forward",    jerseyNumber: 19, teamName: "Australia",     age: 34, photoUrl: null },
+    // Canada
+    { name: "Alphonso Davies",    position: "Defender",   jerseyNumber: 19, teamName: "Canada",        age: 25, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/bfxioh1671441000.jpg" },
+    { name: "Jonathan David",     position: "Forward",    jerseyNumber: 9,  teamName: "Canada",        age: 25, photoUrl: null },
+    // Norway
+    { name: "Erling Haaland",     position: "Forward",    jerseyNumber: 9,  teamName: "Norway",        age: 25, photoUrl: "https://www.thesportsdb.com/images/media/player/thumb/v9xlnb1671441300.jpg" },
+    { name: "Martin Ødegaard",    position: "Midfielder", jerseyNumber: 10, teamName: "Norway",        age: 27, photoUrl: null },
+    // Sweden
+    { name: "Viktor Gyökeres",    position: "Forward",    jerseyNumber: 10, teamName: "Sweden",        age: 27, photoUrl: null },
+    // Austria
+    { name: "David Alaba",        position: "Defender",   jerseyNumber: 6,  teamName: "Austria",       age: 33, photoUrl: null },
+    { name: "Marcel Sabitzer",    position: "Midfielder", jerseyNumber: 7,  teamName: "Austria",       age: 31, photoUrl: null },
+    // Iran
+    { name: "Mehdi Taremi",       position: "Forward",    jerseyNumber: 9,  teamName: "Iran",          age: 33, photoUrl: null },
+    { name: "Sardar Azmoun",      position: "Forward",    jerseyNumber: 7,  teamName: "Iran",          age: 30, photoUrl: null },
+    // Turkey
+    { name: "Arda Güler",         position: "Midfielder", jerseyNumber: 10, teamName: "Turkey",        age: 20, photoUrl: null },
+    { name: "Hakan Çalhanoğlu",   position: "Midfielder", jerseyNumber: 8,  teamName: "Turkey",        age: 31, photoUrl: null },
+    // Ecuador
+    { name: "Enner Valencia",     position: "Forward",    jerseyNumber: 13, teamName: "Ecuador",       age: 35, photoUrl: null },
+    { name: "Moisés Caicedo",     position: "Midfielder", jerseyNumber: 10, teamName: "Ecuador",       age: 23, photoUrl: null },
+    // Scotland
+    { name: "Andy Robertson",     position: "Defender",   jerseyNumber: 3,  teamName: "Scotland",      age: 32, photoUrl: null },
+    { name: "Scott McTominay",    position: "Midfielder", jerseyNumber: 10, teamName: "Scotland",      age: 28, photoUrl: null },
+    // Saudi Arabia
+    { name: "Salem Al-Dawsari",   position: "Forward",    jerseyNumber: 11, teamName: "Saudi Arabia",  age: 33, photoUrl: null },
+    // Paraguay
+    { name: "Miguel Almirón",     position: "Midfielder", jerseyNumber: 10, teamName: "Paraguay",      age: 31, photoUrl: null },
+    // Ivory Coast
+    { name: "Sébastien Haller",   position: "Forward",    jerseyNumber: 9,  teamName: "Ivory Coast",   age: 31, photoUrl: null },
+    // Algeria
+    { name: "Riyad Mahrez",       position: "Forward",    jerseyNumber: 26, teamName: "Algeria",       age: 34, photoUrl: null },
+    { name: "Islam Slimani",      position: "Forward",    jerseyNumber: 19, teamName: "Algeria",       age: 36, photoUrl: null },
   ];
 
   const playerOps = [];
@@ -148,18 +224,21 @@ const seedTopPlayers = async (teamMap) => {
           filter: { name: p.name },
           update: {
             $set: {
-              name: p.name,
-              shortName: p.name.split(" ").pop(),
-              team: teamId,
-              teamName: p.teamName,
-              position: p.position,
-              jerseyNumber: p.jerseyNumber,
-              age: p.age,
-              nationality: p.teamName,
-              active: true,
-              "stats.goals": Math.floor(Math.random() * 5),
-              "stats.assists": Math.floor(Math.random() * 3),
-              "stats.appearances": Math.floor(Math.random() * 4) + 1,
+              name:          p.name,
+              shortName:     p.name.split(" ").pop(),
+              team:          teamId,
+              teamName:      p.teamName,
+              position:      p.position,
+              jerseyNumber:  p.jerseyNumber,
+              age:           p.age,
+              nationality:   p.teamName,
+              photoUrl:      p.photoUrl || null,
+              active:        true,
+            },
+            $setOnInsert: {
+              "stats.goals":       0,
+              "stats.assists":     0,
+              "stats.appearances": 0,
             }
           },
           upsert: true
@@ -204,32 +283,37 @@ router.post("/refresh", piAuth, async (req, res) => {
         console.log("[Sync] Fetching teams from free REST API...");
         const { data } = await axios.get(`${API_BASE}/teams`);
         const teams = data.teams || [];
-        
-        const teamOps = teams.map((t) => ({
-          updateOne: {
-            filter: { apiTeamId: String(t.id) },
-            update: {
-              $set: {
-                apiTeamId: String(t.id),
-                name:      t.name_en,
-                shortName: t.fifa_code || t.name_en.slice(0, 3).toUpperCase(),
-                country:   t.name_en,
-                logoUrl:   t.flag || null,
-                group:     t.groups || null,
+
+        const teamOps = teams.map((t) => {
+          const fifaRank   = FIFA_RANKINGS[t.name_en] || null;
+          const starRating = rankToStars(fifaRank);
+          return {
+            updateOne: {
+              filter: { apiTeamId: String(t.id) },
+              update: {
+                $set: {
+                  apiTeamId:   String(t.id),
+                  name:        t.name_en,
+                  shortName:   t.fifa_code || t.name_en.slice(0, 3).toUpperCase(),
+                  country:     t.name_en,
+                  logoUrl:     t.flag || null,
+                  group:       t.groups || null,
+                  fifaRanking: fifaRank,
+                  starRating:  starRating,
+                },
+                $setOnInsert: {
+                  stats: { played: 0, won: 0, drawn: 0, lost: 0,
+                           goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 0 },
+                },
               },
-              $setOnInsert: {
-                starRating: 3,
-                stats: { played: 0, won: 0, drawn: 0, lost: 0,
-                         goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 0 },
-              },
+              upsert: true,
             },
-            upsert: true,
-          },
-        }));
+          };
+        });
 
         if (teamOps.length) await Team.bulkWrite(teamOps);
         results.teams = teams.length;
-        console.log(`[Sync] Teams synced: ${teams.length}`);
+        console.log(`[Sync] Teams synced: ${teams.length} (with FIFA rankings & star ratings)`);
       } catch (err) {
         results.errors.push(`teams: ${err.message}`);
       }
@@ -289,7 +373,26 @@ router.post("/refresh", piAuth, async (req, res) => {
           },
         }));
 
-        if (matchOps.length) await Match.bulkWrite(matchOps);
+        if (matchOps.length) {
+          await Match.bulkWrite(matchOps);
+          
+          // Auto-enrich matches with lineups, subs, goals, cards, and shootouts
+          try {
+            const { enrichMatch } = require("../utils/matchEnricher");
+            const allMatches = await Match.find({});
+            let enrichedCount = 0;
+            for (const match of allMatches) {
+              const isModified = await enrichMatch(match);
+              if (isModified) {
+                await match.save();
+                enrichedCount++;
+              }
+            }
+            console.log(`[Sync] Matches enriched: ${enrichedCount}`);
+          } catch (enrichErr) {
+            console.error("[Sync] Match enrichment error:", enrichErr.message);
+          }
+        }
         results.matches = games.length;
         console.log(`[Sync] Matches synced: ${games.length}`);
       } catch (err) {
