@@ -56,14 +56,73 @@ const mapStatus = (game) => {
   return "live";
 };
 
-// Parses date strings like "06/11/2026 13:00" in UTC timezone
-const parseKickoff = (dateStr) => {
+const matchTimes = require("../utils/matchTimes.json");
+
+// Helper to normalize team names for fuzzy matching
+const normalizeTeamName = (name) => {
+  if (!name) return "";
+  let n = name.toLowerCase().trim();
+  if (n === "usa" || n === "united states" || n === "united states of america") return "usa";
+  if (n === "bosnia and herzegovina" || n === "bosnia-herzegovina") return "bosnia";
+  if (n === "ivory coast" || n === "cote d'ivoire" || n === "côte d'ivoire") return "cote";
+  if (n === "turkey" || n === "türkiye") return "turkey";
+  if (n === "democratic republic of the congo" || n === "dr congo" || n === "dr. congo" || n === "congo dr") return "drcongo";
+  return n;
+};
+
+// Maps stadium ID to UTC offset hours (Eastern: +4, Central: +5, Mountain: +6, Pacific: +7)
+const stadiumOffsets = {
+  "1": 7,  // Estadio Azteca (Mexico City) - adjusted to match index.html
+  "2": 6,  // Estadio BBVA (Monterrey)
+  "3": 5,  // Estadio Akron (Guadalajara) - adjusted to match index.html
+  "4": 7,  // BC Place (Vancouver)
+  "5": 5,  // BMO Field (Toronto) - adjusted to match index.html
+  "6": 4,  // MetLife Stadium (New York/New Jersey)
+  "7": 5,  // AT&T Stadium (Dallas)
+  "8": 5,  // Arrowhead Stadium (Kansas City)
+  "9": 4,  // Hard Rock Stadium (Miami)
+  "10": 4, // Mercedes-Benz Stadium (Atlanta)
+  "11": 7, // SoFi Stadium (Los Angeles)
+  "12": 4, // Lincoln Financial Field (Philadelphia)
+  "13": 7, // Lumen Field (Seattle)
+  "14": 7, // Levi's Stadium (San Francisco)
+  "15": 4, // Gillette Stadium (Boston)
+  "16": 5  // NRG Stadium (Houston)
+};
+
+// Parses date strings like "06/11/2026 13:00" and converts local time to UTC using stadium offset
+const parseKickoff = (dateStr, stadiumId, homeName, awayName, group) => {
   if (!dateStr) return new Date();
+  
+  // 1. Try to find in index.html overrides
+  if (group && homeName && awayName) {
+    const normHome = normalizeTeamName(homeName);
+    const normAway = normalizeTeamName(awayName);
+    
+    const matched = matchTimes.find(m => {
+      if (m.group.toUpperCase() !== group.toUpperCase()) return false;
+      const mHome = normalizeTeamName(m.home);
+      const mAway = normalizeTeamName(m.away);
+      return (mHome === normHome && mAway === normAway) || (mHome === normAway && mAway === normHome);
+    });
+    
+    if (matched) {
+      return new Date(matched.kickoff);
+    }
+  }
+  
+  // 2. Fallback to parsing API local time and applying stadium offset
   try {
     const [datePart, timePart] = dateStr.split(" ");
     const [month, day, year] = datePart.split("/");
     const [hour, minute] = timePart.split(":");
-    return new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute)));
+    
+    // Parse as local time components
+    const localMs = Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute));
+    
+    // Apply offset: localTime + offsetHours = UTC time
+    const offsetHours = stadiumOffsets[String(stadiumId)] || 4; // default to Eastern offset (+4)
+    return new Date(localMs + offsetHours * 60 * 60 * 1000);
   } catch (e) {
     return new Date(dateStr);
   }
@@ -368,7 +427,7 @@ router.post("/refresh", piAuth, async (req, res) => {
                 "score.away":        g.away_score ? parseInt(g.away_score) : 0,
                 status:              mapStatus(g),
                 minute:              g.time_elapsed !== "notstarted" ? (parseInt(g.time_elapsed) || null) : null,
-                kickoffTime:         parseKickoff(g.local_date),
+                kickoffTime:         parseKickoff(g.local_date, g.stadium_id, g.home_team_name_en, g.away_team_name_en, g.group),
                 venue:               stadiumMap[String(g.stadium_id)] || `Stadium ${g.stadium_id}`,
                 lastSyncedAt:        new Date(),
               },
