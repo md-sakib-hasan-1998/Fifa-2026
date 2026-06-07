@@ -13,6 +13,7 @@ const Match   = require("../models/Match");
 const Team    = require("../models/Team");
 const Player  = require("../models/Player");
 const { piAuth } = require("../middleware/authMiddleware");
+const { updateStarRatings } = require("../utils/starRatingUpdater");
 
 const API_BASE = "https://worldcup26.ir/get";
 
@@ -403,12 +404,25 @@ router.post("/refresh", piAuth, async (req, res) => {
       }
     }
 
+    // ── 3.5 Auto Update Star Ratings (Weekly or forced) ──────────────────────
+    try {
+      console.log("[Sync] Checking/Updating star ratings...");
+      const starResult = await updateStarRatings(forceAll);
+      if (starResult && !starResult.skipped) {
+        results.starRatings = starResult;
+      }
+    } catch (starErr) {
+      console.error("[Sync] Star rating auto-update failed:", starErr.message);
+      results.errors.push(`starRatings: ${starErr.message}`);
+    }
+
     // ── 4. Broadcast via Socket.io ──────────────────────────────────────────
-    if (results.teams > 0 || results.players > 0 || results.matches > 0) {
+    if (results.teams > 0 || results.players > 0 || results.matches > 0 || results.starRatings) {
       io.emit("dataRefreshed", {
         teams:   results.teams,
         players: results.players,
         matches: results.matches,
+        starRatings: !!results.starRatings,
         at:      now.toISOString(),
       });
     }
@@ -423,6 +437,22 @@ router.post("/refresh", piAuth, async (req, res) => {
   } catch (globalErr) {
     console.error("[Sync] Global error:", globalErr.message);
     res.status(500).json({ message: globalErr.message });
+  }
+});
+
+// ─── GET /api/sync/update-stars ───────────────────────────────────────────────
+// Manually triggers the star rating update from the v1rus609 external squads file
+router.get("/update-stars", async (req, res) => {
+  try {
+    console.log("[Sync] Manual star ratings update requested...");
+    const result = await updateStarRatings(true); // force = true
+    res.json({
+      status: "ok",
+      message: "Star ratings updated successfully from external squads file",
+      result
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
