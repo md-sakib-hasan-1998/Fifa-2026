@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import Spinner from '../components/common/Spinner'
-import { starsArray } from '../utils/helpers'
+import { starsArray, formatMatchDate, formatMatchTime } from '../utils/helpers'
 import api from '../utils/api'
 
 const StarRating = ({ rating = 3 }) => (
@@ -34,6 +34,7 @@ const PlayerRow = ({ player }) => {
   const initials = player.name
     ? player.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
     : '?'
+  const stars = player.starRating || 0
 
   return (
     <div className="flex items-center gap-3 bg-white/4 hover:bg-white/8 transition-colors p-2.5 rounded-xl border border-white/5">
@@ -46,7 +47,7 @@ const PlayerRow = ({ player }) => {
       {player.photoUrl ? (
         <img src={player.photoUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 border border-white/10" />
       ) : (
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center font-display text-[10px] font-bold text-ice/70 shrink-0 border border-white/5">
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pitch/30 to-navy/60 flex items-center justify-center font-display text-[10px] font-bold text-ice/80 shrink-0 border border-pitch/20">
           {initials}
         </div>
       )}
@@ -54,7 +55,14 @@ const PlayerRow = ({ player }) => {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-sm text-ice font-medium truncate">{player.name}</p>
-        {player.age && <p className="text-[10px] text-ice/35">Age {player.age}</p>}
+        {/* Star rating */}
+        {stars > 0 && (
+          <div className="flex items-center gap-0.5 mt-0.5">
+            {starsArray(Math.round(stars)).map((filled, i) => (
+              <span key={i} className={filled ? 'text-gold text-[10px]' : 'text-white/15 text-[10px]'}>★</span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Stats */}
@@ -238,12 +246,16 @@ const TeamDetail = () => {
             </div>
           ) : (
             matches.map(m => {
-              const isHome = m.homeTeam?._id?.toString() === id || m.homeTeam === id
+              // Determine if this team is home or away by checking homeTeam._id or name
+              const homeId = m.homeTeam?._id?.toString()
+              const isHome = homeId === id
               const opponent = isHome ? m.awayTeam : m.homeTeam
               const myScore   = isHome ? m.score?.home : m.score?.away
               const oppScore  = isHome ? m.score?.away : m.score?.home
               const isFinished = m.status === 'finished'
               const isLive     = m.status === 'live' || m.status === 'halftime'
+              const isScheduled = m.status === 'scheduled'
+              const opponentName = opponent?.name || 'TBD'
 
               let result = null
               if (isFinished) {
@@ -258,22 +270,42 @@ const TeamDetail = () => {
                   to={`/matches/${m._id}`}
                   className="flex items-center gap-3 card p-4 hover:border-pitch/20 transition-all"
                 >
-                  <span className="text-xs text-ice/30 w-20 shrink-0 uppercase tracking-wider">
-                    {m.stage}
-                  </span>
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {opponent?.logoUrl && <img src={opponent.logoUrl} alt="" className="w-6 h-6 object-contain" />}
-                    <span className="text-sm text-ice font-medium truncate">{isHome ? '(H)' : '(A)'} {opponent?.name}</span>
+                  {/* Stage + Group */}
+                  <div className="shrink-0 w-20">
+                    <p className="text-[10px] text-ice/30 uppercase tracking-wider leading-tight">{m.stage}</p>
+                    {m.group && <p className="text-[10px] text-gold/60">Group {m.group}</p>}
                   </div>
-                  <div className="shrink-0 flex items-center gap-3">
-                    {isLive && <span className="badge-live text-xs">LIVE</span>}
+
+                  {/* Opponent info */}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {opponent?.logoUrl
+                      ? <img src={opponent.logoUrl} alt="" className="w-6 h-6 object-contain shrink-0" />
+                      : <div className="w-6 h-6 rounded-full bg-white/10 shrink-0" />
+                    }
+                    <div className="min-w-0">
+                      <p className="text-sm text-ice font-medium truncate">{isHome ? '🏠' : '✈️'} {opponentName}</p>
+                      {m.city && <p className="text-[10px] text-ice/30 truncate">📍 {m.city}</p>}
+                    </div>
+                  </div>
+
+                  {/* Score / Time / Status */}
+                  <div className="shrink-0 flex flex-col items-end gap-1">
+                    {isLive && <span className="badge-live text-xs">LIVE {m.minute ? `${m.minute}'` : ''}</span>}
                     {isFinished && (
-                      <span className={`font-display text-base tabular-nums ${myScore > oppScore ? 'text-pitch' : myScore < oppScore ? 'text-scarlet' : 'text-ice/60'}`}>
-                        {myScore} – {oppScore}
-                      </span>
+                      <>
+                        <span className={`font-display text-base tabular-nums ${myScore > oppScore ? 'text-pitch' : myScore < oppScore ? 'text-scarlet' : 'text-ice/60'}`}>
+                          {myScore} – {oppScore}
+                        </span>
+                        {result && (
+                          <span className={`font-bold text-[10px] px-2 py-0.5 rounded-full ${result.cls}`}>{result.text}</span>
+                        )}
+                      </>
                     )}
-                    {result && (
-                      <span className={`font-bold text-xs px-2 py-0.5 rounded-full ${result.cls}`}>{result.text}</span>
+                    {isScheduled && m.kickoffTime && (
+                      <>
+                        <span className="text-xs text-ice/60 font-mono">{formatMatchTime(m.kickoffTime)}</span>
+                        <span className="text-[10px] text-ice/30">{formatMatchDate(m.kickoffTime)}</span>
+                      </>
                     )}
                   </div>
                 </Link>

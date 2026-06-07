@@ -3,7 +3,8 @@ const BDT = { timeZone: 'Asia/Dhaka' }
 // Format a kickoff time in BDT (Bangladesh Standard Time, UTC+6)
 export const formatMatchTime = (dateStr) => {
   const d = new Date(dateStr)
-  return d.toLocaleTimeString('en-US', { ...BDT, hour: '2-digit', minute: '2-digit' })
+  const time = d.toLocaleTimeString('en-US', { ...BDT, hour: '2-digit', minute: '2-digit' })
+  return `${time} BDT`
 }
 
 export const formatMatchDate = (dateStr) => {

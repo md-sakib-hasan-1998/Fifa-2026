@@ -24,9 +24,9 @@ const Players = () => {
       setLoading(true)
       try {
         const [s, a, p] = await Promise.all([
-          api.get('/api/players/top-scorers'),
-          api.get('/api/players/top-assists'),
-          api.get('/api/players'),
+          api.get('/api/teams/players/top-scorers'),
+          api.get('/api/teams/players/top-assists'),
+          api.get('/api/teams/players?minStars=4&limit=200'),
         ])
         setScorers(s.data.players || [])
         setAssists(a.data.players || [])

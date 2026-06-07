@@ -9,18 +9,22 @@ const { protect, authorize } = require("../middleware/authMiddleware");
 // ══════════════════════════════════════════════════
 
 // ─── GET /api/teams/players ───────────────────────────────
-// Public. Supports ?team=teamId and ?position= filters.
+// Public. Supports ?team=teamId, ?position=, ?minStars=, ?limit= filters.
 router.get("/players", async (req, res) => {
   try {
-    const { team, position } = req.query;
+    const { team, position, minStars, limit } = req.query;
     const filter = {};
     if (team) filter.team = team;
     if (position) filter.position = position;
+    if (minStars) filter.starRating = { $gte: parseFloat(minStars) };
 
-    const players = await Player.find(filter)
-      .populate("team", "name shortName logoUrl")
-      .sort({ position: 1, jerseyNumber: 1 });
+    const query = Player.find(filter)
+      .populate("team", "name shortName logoUrl flagUrl")
+      .sort({ starRating: -1, position: 1, jerseyNumber: 1 });
 
+    if (limit) query.limit(parseInt(limit));
+
+    const players = await query;
     res.json({ players });
   } catch (error) {
     res.status(500).json({ message: error.message });
