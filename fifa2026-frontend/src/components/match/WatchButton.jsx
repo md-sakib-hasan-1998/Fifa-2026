@@ -11,11 +11,13 @@ const WatchButton = ({ match, onLinkPosted }) => {
   const [saving,  setSaving]    = useState(false)
   const [error,   setError]     = useState('')
 
-  const isLive    = match?.status === 'live' || match?.status === 'halftime'
-  const hasLink   = !!match?.streamLink?.url
+  const isLive      = match?.status === 'live' || match?.status === 'halftime'
+  const isScheduled = match?.status === 'scheduled'
+  const hasLink     = !!match?.streamLink?.url
 
-  // Hide entirely if match is not live
-  if (!isLive) return null
+  // If the user is admin/mod, they can always manage the link.
+  // Otherwise, only show the button if a stream link exists.
+  if (!isAdminOrMod && !hasLink) return null
 
   // ── Guest: show button, clicking goes to login ──────────
   if (!isLoggedIn) {
@@ -51,6 +53,11 @@ const WatchButton = ({ match, onLinkPosted }) => {
 
     return (
       <div className="mt-3 animate-fade-in">
+        {isScheduled && !editing && (
+          <p className="text-[10px] text-ice/30 text-center mb-2 uppercase tracking-wider">
+            Match scheduled — pre-add stream link
+          </p>
+        )}
         {editing ? (
           <div className="flex flex-col gap-2 px-2">
             <input
@@ -118,3 +125,4 @@ const WatchButton = ({ match, onLinkPosted }) => {
 }
 
 export default WatchButton
+

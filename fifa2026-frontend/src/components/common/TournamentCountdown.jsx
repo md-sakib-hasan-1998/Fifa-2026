@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 
 const pad = (n) => String(n).padStart(2, '0')
 
-// FIFA World Cup 2026 first match: June 11, 2026, 19:00 ET = June 12 00:00 UTC
-const TOURNAMENT_START = new Date('2026-06-11T23:00:00Z') // 7pm ET = 11pm UTC
+// FIFA World Cup 2026 first match: June 11, 2026, 19:00 UTC
+const TOURNAMENT_START = new Date('2026-06-11T19:00:00Z')
 
 const TournamentCountdown = () => {
   const [timeLeft, setTimeLeft] = useState(null)
