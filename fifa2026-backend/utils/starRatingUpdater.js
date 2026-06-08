@@ -120,20 +120,54 @@ const updateStarRatings = async (force = false) => {
             playersUpdated++;
           }
         } else {
-          // If the player doesn't exist, create it in the database!
-          // This populates the player section so it doesn't fail to load.
-          const newPlayer = new Player({
-            name: pName,
-            shortName: pName,
+          // Double-check against ALL players in the DB (not just this team) using
+          // a case-insensitive name match — catches superstars seeded by sync.js
+          // under a different team reference or with slightly different casing.
+          const globalExisting = await Player.findOne({
+            name: { $regex: new RegExp(`^${pName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
             team: team._id,
-            teamName: team.name,
-            position: pPos,
-            starRating: pStars,
-            active: true,
-            jerseyNumber: p.jerseyNumber || null,
           });
-          await newPlayer.save();
-          playersCreated++;
+
+          if (globalExisting) {
+            // Player exists under this team already (maybe from seedTopPlayers) — just update stars
+            let changed = false;
+            if (globalExisting.starRating !== pStars) { globalExisting.starRating = pStars; changed = true; }
+            if (p.jerseyNumber && globalExisting.jerseyNumber !== p.jerseyNumber) { globalExisting.jerseyNumber = p.jerseyNumber; changed = true; }
+            if (changed) { await globalExisting.save(); playersUpdated++; }
+          } else {
+            // Last-resort fallback: check by jerseyNumber + team to avoid duplicates
+            // when name spelling differs between seed data and squads JSON
+            let jerseyExisting = null;
+            if (p.jerseyNumber) {
+              jerseyExisting = await Player.findOne({
+                team: team._id,
+                jerseyNumber: p.jerseyNumber,
+              });
+            }
+
+            if (jerseyExisting) {
+              // Same jersey number on same team — update name to canonical squads JSON spelling
+              let changed = false;
+              if (jerseyExisting.starRating !== pStars) { jerseyExisting.starRating = pStars; changed = true; }
+              if (jerseyExisting.position !== pPos) { jerseyExisting.position = pPos; changed = true; }
+              if (changed) { await jerseyExisting.save(); playersUpdated++; }
+            } else {
+              // Truly new player — create it
+              const newPlayer = new Player({
+                name: pName,
+                shortName: pName,
+                team: team._id,
+                teamName: team.name,
+                position: pPos,
+                starRating: pStars,
+                active: true,
+                jerseyNumber: p.jerseyNumber || null,
+                stats: { goals: 0, assists: 0, appearances: 0, minutesPlayed: 0, yellowCards: 0, redCards: 0 },
+              });
+              await newPlayer.save();
+              playersCreated++;
+            }
+          }
         }
       }
 

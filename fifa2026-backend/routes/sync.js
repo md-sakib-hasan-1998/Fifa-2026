@@ -14,6 +14,7 @@ const Team    = require("../models/Team");
 const Player  = require("../models/Player");
 const { piAuth } = require("../middleware/authMiddleware");
 const { updateStarRatings } = require("../utils/starRatingUpdater");
+const { aggregatePlayerStats } = require("../utils/aggregatePlayerStats");
 
 const API_BASE = "https://worldcup26.ir/get";
 
@@ -281,7 +282,7 @@ const seedTopPlayers = async (teamMap) => {
     if (teamId) {
       playerOps.push({
         updateOne: {
-          filter: { name: p.name },
+          filter: { name: p.name, team: teamId },
           update: {
             $set: {
               name:          p.name,
@@ -294,12 +295,15 @@ const seedTopPlayers = async (teamMap) => {
               nationality:   p.teamName,
               photoUrl:      p.photoUrl || null,
               active:        true,
-            },
-            $setOnInsert: {
+              // Always explicitly zero out stats before the tournament starts
+              // so no phantom goals/assists appear
               "stats.goals":       0,
               "stats.assists":     0,
               "stats.appearances": 0,
-            }
+              "stats.minutesPlayed": 0,
+              "stats.yellowCards": 0,
+              "stats.redCards":    0,
+            },
           },
           upsert: true
         }
@@ -454,6 +458,17 @@ router.post("/refresh", piAuth, async (req, res) => {
             console.log(`[Sync] Matches enriched: ${enrichedCount}`);
           } catch (enrichErr) {
             console.error("[Sync] Match enrichment error:", enrichErr.message);
+          }
+
+          // Aggregate player stats from match goal events (goals, assists)
+          try {
+            const aggResult = await aggregatePlayerStats();
+            if (aggResult && aggResult.playersUpdated > 0) {
+              results.playerStatsUpdated = aggResult.playersUpdated;
+              console.log(`[Sync] Player stats aggregated: ${aggResult.playersUpdated} players updated`);
+            }
+          } catch (aggErr) {
+            console.error("[Sync] Player stats aggregation error:", aggErr.message);
           }
         }
         results.matches = games.length;

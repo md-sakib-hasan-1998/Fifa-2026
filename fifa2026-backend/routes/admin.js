@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require("../models/User");
 const Team = require("../models/Team");
 const Player = require("../models/Player");
+const Match = require("../models/Match");
 const { protect, authorize, piAuth } = require("../middleware/authMiddleware");
 
 // All routes here require login + admin or moderator role
@@ -351,6 +352,220 @@ router.get("/sync-status", piAuth, async (req, res) => {
       players: playerCount,
     });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ─── POST /api/admin/reset-stats ─────────────────────────────
+// Admin only. Zeros all player stats and match scores.
+// Use ONLY before the tournament starts to clear phantom data.
+router.post("/reset-stats", ...adminOnly, async (req, res) => {
+  try {
+    const Match = require("../models/Match");
+
+    // Zero all player stats
+    const playerResult = await Player.updateMany(
+      {},
+      {
+        $set: {
+          "stats.goals":        0,
+          "stats.assists":      0,
+          "stats.appearances":  0,
+          "stats.minutesPlayed":0,
+          "stats.yellowCards":  0,
+          "stats.redCards":     0,
+          "stats.shotsOnTarget":0,
+        },
+      }
+    );
+
+    // Zero all match scores and clear goal/card events
+    const matchResult = await Match.updateMany(
+      {},
+      {
+        $set: {
+          "score.home": 0,
+          "score.away": 0,
+          "score.homePenalty": null,
+          "score.awayPenalty": null,
+          goals: [],
+          cards: [],
+          status: "scheduled",
+          minute: null,
+        },
+      }
+    );
+
+    res.json({
+      message: "All stats and scores reset to zero",
+      playersReset: playerResult.modifiedCount,
+      matchesReset: matchResult.modifiedCount,
+    });
+  } catch (error) {
+    console.error("reset-stats error:", error.message);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ─── POST /api/admin/dedup-players ───────────────────────────
+// Admin only. Removes duplicate player documents (same name + team).
+// Keeps the document with the most data (highest stats sum, or latest updatedAt).
+router.post("/dedup-players", ...adminOnly, async (req, res) => {
+  try {
+    // Find all players grouped by name (case-insensitive) + team
+    const duplicates = await Player.aggregate([
+      {
+        $group: {
+          _id: {
+            nameLower: { $toLower: "$name" },
+            team: "$team",
+          },
+          count: { $sum: 1 },
+          ids: { $push: "$_id" },
+          statsSums: { $push: { $add: [{ $ifNull: ["$stats.goals", 0] }, { $ifNull: ["$stats.assists", 0] }] } },
+          updatedAts: { $push: "$updatedAt" },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+    ]);
+
+    let deletedCount = 0;
+
+    for (const dup of duplicates) {
+      const { ids, statsSums, updatedAts } = dup;
+
+      // Pick the "best" record: highest stats sum, or if equal, most recently updated
+      let bestIdx = 0;
+      for (let i = 1; i < ids.length; i++) {
+        if (
+          statsSums[i] > statsSums[bestIdx] ||
+          (statsSums[i] === statsSums[bestIdx] && new Date(updatedAts[i]) > new Date(updatedAts[bestIdx]))
+        ) {
+          bestIdx = i;
+        }
+      }
+
+      // Delete all except the best
+      const toDelete = ids.filter((_, i) => i !== bestIdx);
+      await Player.deleteMany({ _id: { $in: toDelete } });
+      deletedCount += toDelete.length;
+    }
+
+    res.json({
+      message: `Dedup complete. Removed ${deletedCount} duplicate player records.`,
+      duplicateGroupsFound: duplicates.length,
+      deletedCount,
+    });
+  } catch (error) {
+    console.error("dedup-players error:", error.message);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ─── POST /api/admin/reset-stats ─────────────────────────
+// Admin only: Zero all player stats and scheduled match scores.
+// Run this BEFORE the tournament starts (June 11).
+// After the tournament begins, DO NOT run this — stats are real.
+router.post("/reset-stats", ...adminOnly, async (req, res) => {
+  try {
+    // Zero all player stats
+    const playerResult = await Player.updateMany(
+      {},
+      {
+        $set: {
+          "stats.goals":        0,
+          "stats.assists":      0,
+          "stats.appearances":  0,
+          "stats.minutesPlayed":0,
+          "stats.yellowCards":  0,
+          "stats.redCards":     0,
+          "stats.shotsOnTarget":0,
+        },
+      }
+    );
+
+    // Zero match scores for scheduled (not-yet-played) matches only
+    const matchResult = await Match.updateMany(
+      { status: { $in: ["scheduled", "live"] } },
+      {
+        $set: {
+          "score.home": 0,
+          "score.away": 0,
+          goals:        [],
+          cards:        [],
+          minute:       null,
+        },
+      }
+    );
+
+    console.log(`[Admin] reset-stats: ${playerResult.modifiedCount} players zeroed, ${matchResult.modifiedCount} match scores reset.`);
+    res.json({
+      message: `Stats reset complete. ${playerResult.modifiedCount} players zeroed, ${matchResult.modifiedCount} match scores cleared.`,
+      players: playerResult.modifiedCount,
+      matches: matchResult.modifiedCount,
+    });
+  } catch (error) {
+    console.error("reset-stats error:", error.message);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ─── POST /api/admin/dedup-players ───────────────────────
+// Admin only: Remove duplicate player documents.
+// Groups players by name (case-insensitive) + team.
+// Keeps the document with the most data (apiPlayerId or photoUrl),
+// deletes all other duplicates.
+router.post("/dedup-players", ...adminOnly, async (req, res) => {
+  try {
+    // Aggregate duplicates: group by lowercased name + team
+    const duplicates = await Player.aggregate([
+      {
+        $group: {
+          _id: {
+            name: { $toLower: "$name" },
+            team: "$team",
+          },
+          docs: { $push: { _id: "$_id", apiPlayerId: "$apiPlayerId", photoUrl: "$photoUrl", starRating: "$starRating" } },
+          count: { $sum: 1 },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+    ]);
+
+    if (!duplicates.length) {
+      return res.json({ message: "No duplicate players found.", removed: 0, groups: 0 });
+    }
+
+    let totalRemoved = 0;
+    for (const group of duplicates) {
+      const docs = group.docs;
+
+      // Score each doc — prefer the one with apiPlayerId, then photoUrl, then higher starRating
+      const scored = docs.map((d) => ({
+        ...d,
+        score:
+          (d.apiPlayerId ? 100 : 0) +
+          (d.photoUrl ? 50 : 0) +
+          (d.starRating || 0),
+      }));
+      scored.sort((a, b) => b.score - a.score);
+
+      // Keep the best one, delete the rest
+      const toDelete = scored.slice(1).map((d) => d._id);
+      if (toDelete.length) {
+        await Player.deleteMany({ _id: { $in: toDelete } });
+        totalRemoved += toDelete.length;
+      }
+    }
+
+    console.log(`[Admin] dedup-players: removed ${totalRemoved} duplicates across ${duplicates.length} groups.`);
+    res.json({
+      message: `Dedup complete. Removed ${totalRemoved} duplicate player(s) across ${duplicates.length} group(s).`,
+      removed: totalRemoved,
+      groups:  duplicates.length,
+    });
+  } catch (error) {
+    console.error("dedup-players error:", error.message);
     res.status(500).json({ message: error.message });
   }
 });

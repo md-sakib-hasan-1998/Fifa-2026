@@ -37,29 +37,29 @@ const PlayerRow = ({ player }) => {
   const stars = player.starRating || 0
 
   return (
-    <div className="flex items-center gap-3 bg-white/4 hover:bg-white/8 transition-colors p-2.5 rounded-xl border border-white/5">
+    <div className="flex items-center gap-3 bg-white/4 hover:bg-white/8 transition-colors p-3 rounded-xl border border-white/5">
       {/* Jersey # */}
-      <span className="w-7 text-center font-mono text-xs text-gold font-bold bg-gold/10 rounded-lg py-1 shrink-0">
+      <span className="w-8 text-center font-mono text-sm text-gold font-bold bg-gold/10 rounded-lg py-1.5 shrink-0">
         {player.jerseyNumber || '–'}
       </span>
 
       {/* Photo */}
       {player.photoUrl ? (
-        <img src={player.photoUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 border border-white/10" />
+        <img src={player.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover shrink-0 border border-white/10" />
       ) : (
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pitch/30 to-navy/60 flex items-center justify-center font-display text-[10px] font-bold text-ice/80 shrink-0 border border-pitch/20">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pitch/30 to-navy/60 flex items-center justify-center font-display text-xs font-bold text-ice/80 shrink-0 border border-pitch/20">
           {initials}
         </div>
       )}
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-ice font-medium truncate">{player.name}</p>
+        <p className="text-base text-ice font-semibold truncate leading-tight">{player.name}</p>
         {/* Star rating */}
         {stars > 0 && (
           <div className="flex items-center gap-0.5 mt-0.5">
             {starsArray(Math.round(stars)).map((filled, i) => (
-              <span key={i} className={filled ? 'text-gold text-[10px]' : 'text-white/15 text-[10px]'}>★</span>
+              <span key={i} className={filled ? 'text-gold text-xs' : 'text-white/15 text-xs'}>★</span>
             ))}
           </div>
         )}
@@ -76,7 +76,7 @@ const PlayerRow = ({ player }) => {
       </div>
 
       {/* Position badge */}
-      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide shrink-0 ${positionColor(player.position)}`}>
+      <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0 ${positionColor(player.position)}`}>
         {player.position === 'Goalkeeper' ? 'GK' :
          player.position === 'Defender'   ? 'DEF' :
          player.position === 'Midfielder' ? 'MID' : 'FWD'}
@@ -238,22 +238,28 @@ const TeamDetail = () => {
 
       {/* Fixtures Tab */}
       {tab === 'fixtures' && (
-        <div className="space-y-3 animate-fade-in">
+        <div className="animate-fade-in">
           {matches.length === 0 ? (
             <div className="text-center py-16 text-ice/30">
               <p className="text-4xl mb-3">📅</p>
               <p>No matches found</p>
             </div>
-          ) : (
-            matches.map(m => {
-              // Determine if this team is home or away by checking homeTeam._id or name
-              const homeId = m.homeTeam?._id?.toString()
-              const isHome = homeId === id
+          ) : (() => {
+            // Split into group stage + knockout matches
+            const groupMatches    = matches.filter(m => m.stage === 'Group Stage')
+            const knockoutMatches = matches.filter(m => m.stage !== 'Group Stage')
+
+            const renderMatch = (m) => {
+              // Reliable isHome: prefer apiTeamId comparison, fallback to _id
+              const isHome = team?.apiTeamId
+                ? m.homeTeam?.apiTeamId === team.apiTeamId
+                : m.homeTeam?._id?.toString() === id
+
               const opponent = isHome ? m.awayTeam : m.homeTeam
               const myScore   = isHome ? m.score?.home : m.score?.away
               const oppScore  = isHome ? m.score?.away : m.score?.home
-              const isFinished = m.status === 'finished'
-              const isLive     = m.status === 'live' || m.status === 'halftime'
+              const isFinished  = m.status === 'finished'
+              const isLive      = m.status === 'live' || m.status === 'halftime'
               const isScheduled = m.status === 'scheduled'
               const opponentName = opponent?.name || 'TBD'
 
@@ -274,17 +280,18 @@ const TeamDetail = () => {
                   <div className="shrink-0 w-20">
                     <p className="text-[10px] text-ice/30 uppercase tracking-wider leading-tight">{m.stage}</p>
                     {m.group && <p className="text-[10px] text-gold/60">Group {m.group}</p>}
+                    {m.matchday && <p className="text-[10px] text-ice/25">MD {m.matchday}</p>}
                   </div>
 
                   {/* Opponent info */}
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     {opponent?.logoUrl
-                      ? <img src={opponent.logoUrl} alt="" className="w-6 h-6 object-contain shrink-0" />
-                      : <div className="w-6 h-6 rounded-full bg-white/10 shrink-0" />
+                      ? <img src={opponent.logoUrl} alt="" className="w-7 h-7 object-contain shrink-0" />
+                      : <div className="w-7 h-7 rounded-full bg-white/10 shrink-0" />
                     }
                     <div className="min-w-0">
-                      <p className="text-sm text-ice font-medium truncate">{isHome ? '🏠' : '✈️'} {opponentName}</p>
-                      {m.city && <p className="text-[10px] text-ice/30 truncate">📍 {m.city}</p>}
+                      <p className="text-sm text-ice font-semibold truncate">{isHome ? '🏠' : '✈️'} {opponentName}</p>
+                      {m.venue && <p className="text-[10px] text-ice/30 truncate">📍 {m.venue}</p>}
                     </div>
                   </div>
 
@@ -310,8 +317,48 @@ const TeamDetail = () => {
                   </div>
                 </Link>
               )
-            })
-          )}
+            }
+
+            return (
+              <>
+                {/* Group Stage section */}
+                {groupMatches.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-ice/60 uppercase tracking-widest">Group Stage</span>
+                        {team?.group && (
+                          <span className="text-xs font-bold px-2.5 py-0.5 bg-gold/15 text-gold rounded-full border border-gold/20">
+                            Group {team.group}
+                          </span>
+                        )}
+                        <span className="text-xs bg-white/5 text-ice/40 px-2 py-0.5 rounded-full">
+                          {groupMatches.length} match{groupMatches.length !== 1 ? 'es' : ''}
+                        </span>
+                      </div>
+                      <div className="flex-1 border-t border-white/5" />
+                    </div>
+                    <div className="space-y-2">
+                      {groupMatches.map(renderMatch)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Knockout matches */}
+                {knockoutMatches.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-xs font-bold text-ice/60 uppercase tracking-widest">Knockout Stage</span>
+                      <div className="flex-1 border-t border-white/5" />
+                    </div>
+                    <div className="space-y-2">
+                      {knockoutMatches.map(renderMatch)}
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </div>
       )}
     </Layout>

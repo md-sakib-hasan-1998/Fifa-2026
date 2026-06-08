@@ -12,29 +12,10 @@ const WatchButton = ({ match, onLinkPosted }) => {
   const [error,   setError]     = useState('')
 
   const isLive    = match?.status === 'live' || match?.status === 'halftime'
+  const isScheduled = match?.status === 'scheduled'
   const hasLink   = !!match?.streamLink?.url
 
-  // Hide entirely if match is not live
-  if (!isLive) return null
-
-  // ── Guest: show button, clicking goes to login ──────────
-  if (!isLoggedIn) {
-    return (
-      <div className="mt-3 flex justify-center">
-        <button
-          onClick={() => navigate('/login')}
-          className="flex items-center gap-2 bg-scarlet/20 hover:bg-scarlet/30
-                     border border-scarlet/40 text-scarlet font-bold text-sm px-5 py-2
-                     rounded-full transition-all duration-150 animate-fade-in"
-        >
-          <span className="w-2 h-2 rounded-full bg-scarlet animate-ping-slow" />
-          WATCH LIVE — Sign In to Watch
-        </button>
-      </div>
-    )
-  }
-
-  // ── Admin / Moderator: show button + link editor ────────
+  // ── Admin / Moderator: always show the stream link editor ──
   if (isAdminOrMod) {
     const handleSave = async () => {
       setSaving(true); setError('')
@@ -51,6 +32,11 @@ const WatchButton = ({ match, onLinkPosted }) => {
 
     return (
       <div className="mt-3 animate-fade-in">
+        {isScheduled && !editing && (
+          <p className="text-[10px] text-ice/30 text-center mb-2 uppercase tracking-wider">
+            Match scheduled — pre-add stream link
+          </p>
+        )}
         {editing ? (
           <div className="flex flex-col gap-2 px-2">
             <input
@@ -71,7 +57,7 @@ const WatchButton = ({ match, onLinkPosted }) => {
           </div>
         ) : (
           <div className="flex items-center justify-center gap-2">
-            {hasLink && (
+            {hasLink && isLive && (
               <a
                 href={match.streamLink.url}
                 target="_blank"
@@ -93,6 +79,26 @@ const WatchButton = ({ match, onLinkPosted }) => {
             </button>
           </div>
         )}
+      </div>
+    )
+  }
+
+  // Hide entirely if match is not live for non-admin users
+  if (!isLive) return null
+
+  // ── Guest: show button, clicking goes to login ──────────
+  if (!isLoggedIn) {
+    return (
+      <div className="mt-3 flex justify-center">
+        <button
+          onClick={() => navigate('/login')}
+          className="flex items-center gap-2 bg-scarlet/20 hover:bg-scarlet/30
+                     border border-scarlet/40 text-scarlet font-bold text-sm px-5 py-2
+                     rounded-full transition-all duration-150 animate-fade-in"
+        >
+          <span className="w-2 h-2 rounded-full bg-scarlet animate-ping-slow" />
+          WATCH LIVE — Sign In to Watch
+        </button>
       </div>
     )
   }
