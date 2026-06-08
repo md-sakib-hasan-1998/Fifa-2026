@@ -20,8 +20,9 @@ function parseLocalBDTDate(dateStr, timeStr) {
   const month = MONTH_INDEX[parts[2]];
   
   const localMs = Date.UTC(TOURNAMENT_YEAR, month, day, clock[0], clock[1]);
-  // Bangladesh offset is UTC+6
-  return new Date(localMs - 6 * 60 * 60 * 1000);
+  // The source index.html FIXTURES array has kickoff times in UTC+8 (Beijing Time).
+  // Subtraction of 8 hours translates it to UTC kickoff time.
+  return new Date(localMs - 8 * 60 * 60 * 1000);
 }
 
 async function main() {
