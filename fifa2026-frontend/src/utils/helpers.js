@@ -1,16 +1,43 @@
-const BDT = { timeZone: 'Asia/Dhaka' }
+// Detect whether the viewer is in Bangladesh (UTC+6, Asia/Dhaka)
+const _userTz = Intl.DateTimeFormat().resolvedOptions().timeZone
+const _isBD   = _userTz === 'Asia/Dhaka'
 
-// Format a kickoff time in BDT (Bangladesh Standard Time, UTC+6)
+// Format a kickoff time in the viewer's local timezone.
+// Bangladeshi users see "BD Time"; everyone else sees their local tz abbreviation.
 export const formatMatchTime = (dateStr) => {
+  if (!dateStr) return '—'
   const d = new Date(dateStr)
-  const time = d.toLocaleTimeString('en-US', { ...BDT, hour: '2-digit', minute: '2-digit' })
-  return `${time} BDT`
+  if (isNaN(d)) return '—'
+  if (_isBD) {
+    const time = d.toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Dhaka',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    return `${time} BD Time`
+  }
+  // Other countries — use their local timezone
+  const time = d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  })
+  return time  // already includes abbreviation like "4:30 PM IST"
 }
 
 export const formatMatchDate = (dateStr) => {
+  if (!dateStr) return '—'
   const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', { ...BDT, weekday: 'short', month: 'short', day: 'numeric' })
+  if (isNaN(d)) return '—'
+  const tz = _isBD ? 'Asia/Dhaka' : undefined   // undefined = local tz
+  return d.toLocaleDateString('en-US', {
+    ...(tz ? { timeZone: tz } : {}),
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
 }
+
 
 // Render star rating as filled/empty stars string (used by StarRating component)
 export const starsArray = (rating = 3) =>

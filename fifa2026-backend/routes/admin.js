@@ -6,6 +6,17 @@ const Player = require("../models/Player");
 const Match = require("../models/Match");
 const { protect, authorize, piAuth } = require("../middleware/authMiddleware");
 
+const getGithubPhotoUrl = (teamName, playerName) => {
+  if (!teamName || !playerName) return null;
+  const normalize = (str) => str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+  return `https://raw.githubusercontent.com/md-sakib-hasan-1998/Fifa-2026/main/player-photos/${normalize(teamName)}_${normalize(playerName)}.png`;
+};
+
 // All routes here require login + admin or moderator role
 const adminOrMod = [protect, authorize("admin", "moderator")];
 const adminOnly = [protect, authorize("admin")];
@@ -240,7 +251,7 @@ router.post("/sync-team", piAuth, async (req, res) => {
             shortName:    p.shortName    || p.name,
             team:         team._id,
             teamName:     team.name,
-            photoUrl:     p.photoUrl     || null,
+            photoUrl:     getGithubPhotoUrl(team.name, p.name),
             nationality:  p.nationality  || team.country,
             age:          p.age          || null,
             position,

@@ -14,13 +14,24 @@ const PlayerCard = ({ player, rank }) => (
     )}
 
     {/* Photo */}
-    <div className="shrink-0">
-      {player.photoUrl
-        ? <img src={player.photoUrl} alt={player.name} className="w-14 h-14 rounded-full object-cover border-2 border-white/10" />
-        : <div className="w-14 h-14 rounded-full bg-navy-600 border-2 border-white/10 flex items-center justify-center font-display text-2xl text-ice/30">
-            {player.name?.[0]}
-          </div>
-      }
+    <div className="shrink-0 relative">
+      {player.photoUrl && (
+        <img
+          src={player.photoUrl}
+          alt={player.name}
+          className="w-14 h-14 rounded-full object-cover border-2 border-white/10"
+          onError={(e) => {
+            e.currentTarget.style.display = 'none'
+            e.currentTarget.nextSibling.style.display = 'flex'
+          }}
+        />
+      )}
+      <div
+        className="w-14 h-14 rounded-full bg-navy-600 border-2 border-white/10 items-center justify-center font-display text-2xl text-ice/30"
+        style={{ display: player.photoUrl ? 'none' : 'flex' }}
+      >
+        {player.name?.[0]}
+      </div>
     </div>
 
     {/* Info */}

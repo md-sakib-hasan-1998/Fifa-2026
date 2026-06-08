@@ -65,12 +65,22 @@ const MatchDetail = () => {
         </span>
         
         {player.photoUrl ? (
-          <img src={player.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10" />
-        ) : (
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center font-display text-[10px] font-bold text-ice/70 shrink-0 border border-white/5">
-            {initials}
-          </div>
-        )}
+          <img
+            src={player.photoUrl}
+            alt=""
+            className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+              e.currentTarget.nextSibling.style.display = 'flex'
+            }}
+          />
+        ) : null}
+        <div
+          className="w-8 h-8 rounded-full bg-gradient-to-br from-white/10 to-white/5 items-center justify-center font-display text-[10px] font-bold text-ice/70 shrink-0 border border-white/5"
+          style={{ display: player.photoUrl ? 'none' : 'flex' }}
+        >
+          {initials}
+        </div>
 
         <div className="min-w-0 flex-1">
           <p className="text-sm text-ice font-medium truncate leading-tight">{player.name}</p>

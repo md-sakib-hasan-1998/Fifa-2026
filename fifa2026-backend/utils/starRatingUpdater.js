@@ -5,6 +5,17 @@ const Setting = require("../models/Setting");
 
 const SQUADS_URL = "https://v1rus609.github.io/worldcup26/wc26-official-squads.json";
 
+const getGithubPhotoUrl = (teamName, playerName) => {
+  if (!teamName || !playerName) return null;
+  const normalize = (str) => str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+  return `https://raw.githubusercontent.com/md-sakib-hasan-1998/Fifa-2026/main/player-photos/${normalize(teamName)}_${normalize(playerName)}.png`;
+};
+
 // Map api-football / web positions to standard enum values
 const mapPosition = (pos) => {
   const value = String(pos || "Midfielder").toLowerCase();
@@ -162,6 +173,7 @@ const updateStarRatings = async (force = false) => {
                 starRating: pStars,
                 active: true,
                 jerseyNumber: p.jerseyNumber || null,
+                photoUrl: getGithubPhotoUrl(team.name, pName),
                 stats: { goals: 0, assists: 0, appearances: 0, minutesPlayed: 0, yellowCards: 0, redCards: 0 },
               });
               await newPlayer.save();

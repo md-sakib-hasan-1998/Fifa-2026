@@ -71,6 +71,17 @@ const normalizeTeamName = (name) => {
   return n;
 };
 
+const getGithubPhotoUrl = (teamName, playerName) => {
+  if (!teamName || !playerName) return null;
+  const normalize = (str) => str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+  return `https://raw.githubusercontent.com/md-sakib-hasan-1998/Fifa-2026/main/player-photos/${normalize(teamName)}_${normalize(playerName)}.png`;
+};
+
 // Maps stadium ID to UTC offset hours (Eastern: +4, Central: +5, Mountain: +6, Pacific: +7)
 const stadiumOffsets = {
   "1": 7,  // Estadio Azteca (Mexico City) - adjusted to match index.html
@@ -92,27 +103,18 @@ const stadiumOffsets = {
 };
 
 // Parses date strings like "06/11/2026 13:00" and converts local time to UTC using stadium offset
-const parseKickoff = (dateStr, stadiumId, homeName, awayName, group) => {
-  if (!dateStr) return new Date();
-  
-  // 1. Try to find in index.html overrides
-  if (group && homeName && awayName) {
-    const normHome = normalizeTeamName(homeName);
-    const normAway = normalizeTeamName(awayName);
-    
-    const matched = matchTimes.find(m => {
-      if (m.group.toUpperCase() !== group.toUpperCase()) return false;
-      const mHome = normalizeTeamName(m.home);
-      const mAway = normalizeTeamName(m.away);
-      return (mHome === normHome && mAway === normAway) || (mHome === normAway && mAway === normHome);
-    });
-    
+const parseKickoff = (apiMatchId, dateStr, stadiumId) => {
+  if (apiMatchId) {
+    const matchNum = parseInt(apiMatchId, 10);
+    const matched = matchTimes.find(m => m.matchNum === matchNum);
     if (matched) {
       return new Date(matched.kickoff);
     }
   }
+
+  if (!dateStr) return new Date();
   
-  // 2. Fallback to parsing API local time and applying stadium offset
+  // Fallback to parsing API local time and applying stadium offset
   try {
     const [datePart, timePart] = dateStr.split(" ");
     const [month, day, year] = datePart.split("/");
@@ -293,7 +295,7 @@ const seedTopPlayers = async (teamMap) => {
               jerseyNumber:  p.jerseyNumber,
               age:           p.age,
               nationality:   p.teamName,
-              photoUrl:      p.photoUrl || null,
+              photoUrl:      getGithubPhotoUrl(p.teamName, p.name),
               active:        true,
               // Always explicitly zero out stats before the tournament starts
               // so no phantom goals/assists appear
@@ -431,7 +433,7 @@ router.post("/refresh", piAuth, async (req, res) => {
                 "score.away":        g.away_score ? parseInt(g.away_score) : 0,
                 status:              mapStatus(g),
                 minute:              g.time_elapsed !== "notstarted" ? (parseInt(g.time_elapsed) || null) : null,
-                kickoffTime:         parseKickoff(g.local_date, g.stadium_id, g.home_team_name_en, g.away_team_name_en, g.group),
+                kickoffTime:         parseKickoff(String(g.id), g.local_date, g.stadium_id),
                 venue:               stadiumMap[String(g.stadium_id)] || `Stadium ${g.stadium_id}`,
                 lastSyncedAt:        new Date(),
               },

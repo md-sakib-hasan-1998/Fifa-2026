@@ -45,12 +45,22 @@ const PlayerRow = ({ player }) => {
 
       {/* Photo */}
       {player.photoUrl ? (
-        <img src={player.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover shrink-0 border border-white/10" />
-      ) : (
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pitch/30 to-navy/60 flex items-center justify-center font-display text-xs font-bold text-ice/80 shrink-0 border border-pitch/20">
-          {initials}
-        </div>
-      )}
+        <img
+          src={player.photoUrl}
+          alt=""
+          className="w-10 h-10 rounded-full object-cover shrink-0 border border-white/10"
+          onError={(e) => {
+            e.currentTarget.style.display = 'none'
+            e.currentTarget.nextSibling.style.display = 'flex'
+          }}
+        />
+      ) : null}
+      <div
+        className="w-10 h-10 rounded-full bg-gradient-to-br from-pitch/30 to-navy/60 items-center justify-center font-display text-xs font-bold text-ice/80 shrink-0 border border-pitch/20"
+        style={{ display: player.photoUrl ? 'none' : 'flex' }}
+      >
+        {initials}
+      </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
