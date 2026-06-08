@@ -21,6 +21,17 @@ const getGithubPhotoUrl = (teamName, playerName) => {
 const adminOrMod = [protect, authorize("admin", "moderator")];
 const adminOnly = [protect, authorize("admin")];
 
+// ─── GET /api/admin/pending-count ─────────────────────────
+// Returns the count of pending user requests
+router.get("/pending-count", ...adminOrMod, async (req, res) => {
+  try {
+    const count = await User.countDocuments({ status: "pending" });
+    res.json({ count });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // ─── GET /api/admin/users ─────────────────────────────────
 // Get all users (with optional status filter)
 router.get("/users", ...adminOrMod, async (req, res) => {

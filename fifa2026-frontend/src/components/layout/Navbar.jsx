@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { roleBadgeClass, cap } from '../../utils/helpers'
 import { useSocket } from '../../context/SocketContext'
+import api from '../../utils/api'
 
 const NAV_LINKS = [
   { to: '/',        label: 'Scores'  },
@@ -17,6 +18,28 @@ const Navbar = () => {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [dropOpen, setDropOpen] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
+
+  // Poll count of pending signup requests if user is Admin/Moderator
+  useEffect(() => {
+    if (!isAdminOrMod) {
+      setPendingCount(0)
+      return
+    }
+
+    const fetchPendingCount = async () => {
+      try {
+        const { data } = await api.get('/api/admin/pending-count')
+        setPendingCount(data.count || 0)
+      } catch (e) {
+        console.error('Failed to fetch pending count:', e)
+      }
+    }
+
+    fetchPendingCount()
+    const interval = setInterval(fetchPendingCount, 15000) // Poll every 15 seconds
+    return () => clearInterval(interval)
+  }, [isAdminOrMod])
 
   const handleLogout = () => {
     logout()
@@ -58,12 +81,17 @@ const Navbar = () => {
             <NavLink
               to="/admin"
               className={({ isActive }) =>
-                `px-4 py-1.5 rounded text-sm font-medium transition-colors duration-150 ${
+                `px-4 py-1.5 rounded text-sm font-medium transition-colors duration-150 flex items-center gap-1.5 ${
                   isActive ? 'bg-gold/15 text-gold' : 'text-gold/60 hover:text-gold hover:bg-gold/5'
                 }`
               }
             >
-              Admin
+              <span>Admin</span>
+              {pendingCount > 0 && (
+                <span className="flex items-center justify-center bg-scarlet text-white font-bold text-[10px] min-w-[18px] h-[18px] px-1.5 rounded-full animate-pulse shadow-[0_0_8px_rgba(255,23,68,0.5)] border border-scarlet/30">
+                  {pendingCount}
+                </span>
+              )}
             </NavLink>
           )}
         </div>
@@ -161,9 +189,14 @@ const Navbar = () => {
           ))}
           {isAdminOrMod && (
             <NavLink to="/admin" onClick={() => setMenuOpen(false)}
-              className="block px-4 py-3 text-sm text-gold/70 border-b border-white/5"
+              className="flex items-center justify-between px-4 py-3 text-sm text-gold/70 border-b border-white/5"
             >
-              Admin Panel
+              <span>Admin Panel</span>
+              {pendingCount > 0 && (
+                <span className="flex items-center justify-center bg-scarlet text-white font-bold text-[10px] min-w-[18px] h-[18px] px-1.5 rounded-full animate-pulse shadow-[0_0_8px_rgba(255,23,68,0.5)] border border-scarlet/30">
+                  {pendingCount}
+                </span>
+              )}
             </NavLink>
           )}
         </div>
