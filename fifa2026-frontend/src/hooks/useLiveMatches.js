@@ -43,14 +43,9 @@ export const useLiveMatches = () => {
       )
     }
 
-    const handleStreamLink = (update) => {
-      setMatches((prev) =>
-        prev.map((m) =>
-          m._id === update.matchId
-            ? { ...m, streamLink: { ...m.streamLink, url: update.hasLink ? m.streamLink?.url : null } }
-            : m
-        )
-      )
+    const handleStreamLink = () => {
+      // Re-fetch all matches to get the latest streamLinks array
+      fetchMatches()
     }
 
     // When Render cron job finishes a sync, re-fetch the full match list

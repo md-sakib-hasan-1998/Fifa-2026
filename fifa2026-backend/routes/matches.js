@@ -31,7 +31,7 @@ router.get("/", async (req, res) => {
 
     const matches = await Match.find(filter)
       .sort({ kickoffTime: 1 })
-      .populate("streamLink.postedBy", "name role");
+      .populate("streamLinks.postedBy", "name role");
 
     res.json({ matches });
   } catch (error) {
@@ -56,7 +56,7 @@ router.get("/live", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const match = await Match.findById(req.params.id)
-      .populate("streamLink.postedBy", "name role");
+      .populate("streamLinks.postedBy", "name role");
 
     if (!match) return res.status(404).json({ message: "Match not found" });
 
