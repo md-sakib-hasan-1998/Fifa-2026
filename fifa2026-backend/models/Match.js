@@ -155,16 +155,19 @@ const matchSchema = new mongoose.Schema(
       scored: { type: Boolean }
     }],
 
-    // ─── Stream link ───────────────────────────────────────
-    // Admin or moderator posts the live stream URL here
-    streamLink: {
-      url: { type: String, default: null },
-      postedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        default: null,
-      },
-      postedAt: { type: Date, default: null },
+    // ─── Stream links ──────────────────────────────────────
+    // Admin / moderator posts one or more live stream URLs here.
+    // Each entry: { label, url, postedBy, postedAt }
+    streamLinks: {
+      type: [
+        {
+          label:    { type: String, default: "Link" },
+          url:      { type: String, required: true },
+          postedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+          postedAt: { type: Date, default: null },
+        },
+      ],
+      default: [],
     },
 
     // ─── Last synced from API ───────────────────────────────

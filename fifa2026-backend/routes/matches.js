@@ -60,11 +60,11 @@ router.get("/:id", async (req, res) => {
 
     if (!match) return res.status(404).json({ message: "Match not found" });
 
-    // If the user is not logged in, hide the stream link URL
+    // If the user is not logged in, hide the stream links
     const matchData = match.toObject();
     const isAuthenticated = req.headers.authorization ? true : false;
-    if (!isAuthenticated && matchData.streamLink) {
-      matchData.streamLink.url = null;
+    if (!isAuthenticated && matchData.streamLinks) {
+      matchData.streamLinks = [];
     }
 
     res.json({ match: matchData });
@@ -74,34 +74,40 @@ router.get("/:id", async (req, res) => {
 });
 
 // ─── PUT /api/matches/:id/stream ──────────────────────────
-// Admin or mod only. Posts or updates the live stream link.
+// Admin or mod only. Replaces the full streamLinks array.
+// Body: { links: [{ label: "Link 1", url: "https://..." }, ...] }
 router.put(
   "/:id/stream",
   protect,
   authorize("admin", "moderator"),
   async (req, res) => {
     try {
-      const { url } = req.body;
+      const { links } = req.body; // array of { label, url }
       const match = await Match.findById(req.params.id);
       if (!match) return res.status(404).json({ message: "Match not found" });
 
-      match.streamLink = {
-        url: url || null,
-        postedBy: url ? req.user._id : null,
-        postedAt: url ? new Date() : null,
-      };
+      // Build validated link array (remove empty URLs)
+      const now = new Date();
+      match.streamLinks = (Array.isArray(links) ? links : [])
+        .filter((l) => l.url && l.url.trim())
+        .map((l, i) => ({
+          label:    (l.label && l.label.trim()) || `Link ${i + 1}`,
+          url:      l.url.trim(),
+          postedBy: req.user._id,
+          postedAt: now,
+        }));
 
       await match.save();
 
       // Emit real-time update to all connected clients
       const io = req.app.get("io");
       io.emit("streamLinkUpdated", {
-        matchId: match._id,
-        hasLink: !!url,
+        matchId:  match._id,
+        hasLinks: match.streamLinks.length > 0,
       });
 
       res.json({
-        message: url ? "Stream link updated" : "Stream link removed",
+        message: match.streamLinks.length ? "Stream links updated" : "Stream links cleared",
         match,
       });
     } catch (error) {
